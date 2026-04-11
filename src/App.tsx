@@ -590,7 +590,7 @@ function AppContent() {
     const start = () => { 
       if (timer) return; 
       timer = window.setInterval(() => {
-        setNow(prev => {
+        setNow(() => {
           const curr = new Date();
           checkMidnight(curr); // Quét mỗi giây khi app đang bật
           return curr;

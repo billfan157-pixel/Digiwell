@@ -20,7 +20,7 @@ const card = "bg-slate-800/60 backdrop-blur-sm border border-slate-700/50 rounde
 
 export default function InsightTab({
   isPremium, setShowPremiumModal, isExportingPDF, handleExportPDF,
-  waterIntake, waterGoal, weeklyChartData, progress, isAiLoading, aiAdvice, fetchAIAdvice, setShowAiChat
+  waterGoal, weeklyChartData, progress, isAiLoading, aiAdvice, fetchAIAdvice, setShowAiChat
 }: InsightTabProps) {
   const weeklyStats = useMemo(() => {
     if (!weeklyChartData || weeklyChartData.length === 0) {

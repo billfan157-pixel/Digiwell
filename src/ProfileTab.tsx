@@ -25,7 +25,7 @@ const cardGlow = "bg-slate-800/60 backdrop-blur-sm border border-cyan-500/20 rou
 
 export default function ProfileTab({
   profile, isPremium, streak, socialProfileStats, waterIntake, waterGoal, weeklyHistory,
-  progress, completionPercent, remainingWater, currentRank, wp,
+  completionPercent, remainingWater, currentRank, wp,
   setShowPremiumModal, setShowAddFriend, setShowProfileSettings, setActiveTab, handleLogout
 }: ProfileTabProps) {
   return (

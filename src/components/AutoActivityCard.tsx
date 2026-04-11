@@ -8,7 +8,7 @@ interface AutoActivityCardProps {
   setCurrentActivity: (activity: 'chill' | 'light' | 'hard') => void;
 }
 
-const AutoActivityCard = (props: AutoActivityCardProps) => {
+const AutoActivityCard = (_props: AutoActivityCardProps) => {
   return (
     <div>
       AutoActivityCard placeholder
