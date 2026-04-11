@@ -15,7 +15,8 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22' # Nâng cấp lên Node 22 để khớp với Capacitor 8
+          cache: 'npm'
 
       - name: Install dependencies
         run: npm install --legacy-peer-deps
@@ -32,28 +33,27 @@ jobs:
       - name: Add or Sync Capacitor iOS
         run: |
           if [ ! -d "ios" ]; then
-            echo "Folder ios không tồn tại. Đang tạo mới..."
             npx cap add ios
           else
-            echo "Đang đồng bộ source code vào dự án ios..."
             npx cap sync ios
           fi
 
       - name: Build iOS App (Unsigned)
         run: |
-          cd ios/App
-          if [ -d "App.xcworkspace" ]; then
-            echo "Tìm thấy App.xcworkspace. Đang build..."
-            xcodebuild -workspace App.xcworkspace -scheme App -configuration Release -sdk iphoneos CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO clean build CONFIGURATION_BUILD_DIR="$(pwd)/build/Release-iphoneos"
-          else
-            echo "Không có xcworkspace, tìm thấy App.xcodeproj. Đang build..."
-            xcodebuild -project App.xcodeproj -scheme App -configuration Release -sdk iphoneos CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO clean build CONFIGURATION_BUILD_DIR="$(pwd)/build/Release-iphoneos"
-          fi
+          xcodebuild -workspace ios/App/App.xcworkspace \
+                     -scheme App \
+                     -configuration Release \
+                     -sdk iphoneos \
+                     CODE_SIGN_IDENTITY="" \
+                     CODE_SIGNING_REQUIRED=NO \
+                     CODE_SIGNING_ALLOWED=NO \
+                     clean build \
+                     -derivedDataPath build_output
 
       - name: Create IPA payload
         run: |
           mkdir -p Payload
-          cp -r ios/App/build/Release-iphoneos/App.app Payload/
+          cp -r build_output/Build/Products/Release-iphoneos/App.app Payload/
           zip -r DigiWell-iOS.ipa Payload
 
       - name: Upload IPA Artifact
