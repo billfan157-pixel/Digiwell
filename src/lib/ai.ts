@@ -21,7 +21,7 @@ type WaterAction = {
   name: string;
 };
 
-const geminiApiKey = import.meta.env.VITE_GEMINI_API_KEY?.trim();
+const geminiApiKey = 'GEMINI_API_KEY_CỦA_BẠN';
 let availableGeminiModelsCache: string[] | null = null;
 
 const PREFERRED_MODELS = [

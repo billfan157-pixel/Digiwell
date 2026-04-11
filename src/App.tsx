@@ -1898,7 +1898,7 @@ ${historyText}`;
   // [GIAO DIỆN 4] MAIN DASHBOARD
   // ==========================================================================
   return (
-    <div className="flex flex-col h-screen max-w-md mx-auto relative font-sans overflow-hidden" style={{ background: '#0f172a' }}>
+    <div className="flex flex-col h-screen max-w-md mx-auto relative font-sans overflow-hidden pb-24 pt-12 px-4" style={{ background: '#0f172a' }}>
       <Toaster position="top-center" theme="dark" richColors closeButton />
       <input type="file" accept="image/*" capture="environment" ref={fileInputRef} className="hidden" onChange={processImageScan} />
 
@@ -1944,7 +1944,6 @@ ${historyText}`;
             setShowPremiumModal={setShowPremiumModal}
             isExportingPDF={isExportingPDF}
             handleExportPDF={handleExportPDF}
-            waterIntake={waterIntake}
             waterGoal={waterGoal}
             weeklyChartData={weeklyHistory}
             progress={progress}
@@ -1993,7 +1992,6 @@ ${historyText}`;
             waterIntake={waterIntake}
             waterGoal={waterGoal}
             weeklyHistory={weeklyHistory}
-            progress={progress}
             completionPercent={completionPercent}
             remainingWater={remainingWater}
             currentRank={currentRank}

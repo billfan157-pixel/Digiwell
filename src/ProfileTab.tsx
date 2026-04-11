@@ -8,7 +8,6 @@ interface ProfileTabProps {
   waterIntake: number;
   waterGoal: number;
   weeklyHistory: { d: string; ml: number; isToday: boolean }[];
-  progress: number;
   completionPercent: number;
   remainingWater: number;
   currentRank: { name: string; color: string; bg: string; border: string };

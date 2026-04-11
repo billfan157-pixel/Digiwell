@@ -6,7 +6,6 @@ interface InsightTabProps {
   setShowPremiumModal: (show: boolean) => void;
   isExportingPDF: boolean;
   handleExportPDF: () => void;
-  waterIntake: number;
   waterGoal: number;
   weeklyChartData: { d: string; ml: number; isToday: boolean; }[];
   progress: number;
