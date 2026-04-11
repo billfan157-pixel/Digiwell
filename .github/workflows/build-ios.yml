@@ -15,7 +15,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '22' # Nâng cấp lên Node 22 để khớp với Capacitor 8
+          node-version: '22'
           cache: 'npm'
 
       - name: Install dependencies
@@ -40,7 +40,18 @@ jobs:
 
       - name: Build iOS App (Unsigned)
         run: |
-          xcodebuild -workspace ios/App/App.xcworkspace \
+          # Tự động tìm file .xcodeproj hoặc .xcworkspace
+          PROJECT_PATH=$(find ios -name "*.xcodeproj" -o -name "*.xcworkspace" | head -n 1)
+          echo "Found project at: $PROJECT_PATH"
+          
+          # Kiểm tra nếu là workspace thì dùng -workspace, nếu là project thì dùng -project
+          if [[ $PROJECT_PATH == *".xcworkspace" ]]; then
+            TARGET_FLAG="-workspace"
+          else
+            TARGET_FLAG="-project"
+          fi
+
+          xcodebuild $TARGET_FLAG "$PROJECT_PATH" \
                      -scheme App \
                      -configuration Release \
                      -sdk iphoneos \
@@ -53,7 +64,10 @@ jobs:
       - name: Create IPA payload
         run: |
           mkdir -p Payload
-          cp -r build_output/Build/Products/Release-iphoneos/App.app Payload/
+          # Tự động tìm file .app trong thư mục build_output vừa tạo
+          APP_PATH=$(find build_output -name "*.app" | grep -v "Archive" | head -n 1)
+          echo "Found app at: $APP_PATH"
+          cp -r "$APP_PATH" Payload/
           zip -r DigiWell-iOS.ipa Payload
 
       - name: Upload IPA Artifact
