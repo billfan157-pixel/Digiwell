@@ -21,8 +21,6 @@ type WaterAction = {
   name: string;
 };
 
-const geminiApiKey = 'GEMINI_API_KEY_CỦA_BẠN';
-let availableGeminiModelsCache: string[] | null = null;
 
 const PREFERRED_MODELS = [
   'models/gemini-2.5-flash',
@@ -34,6 +32,9 @@ const PREFERRED_MODELS = [
 ];
 
 const FRIENDLY_FALLBACK_ADVICE = 'Hệ thống AI đang bận một chút. Tạm thời hãy uống thêm vài ngụm nước nhỏ và nghỉ 1-2 phút nhé!';
+
+const geminiApiKey = '<REDACTED_GEMINI_KEY>';
+let availableGeminiModelsCache: string[] | null = null;
 
 function createGeminiClient() {
   if (!geminiApiKey) {

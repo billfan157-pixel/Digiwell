@@ -200,7 +200,8 @@ function AppContent() {
   // ==========================================================================
   const [aiAdvice, setAiAdvice] = useState<string>('');
   const [isAiLoading, setIsAiLoading] = useState(false);
-  const geminiApiKey = import.meta.env.VITE_GEMINI_API_KEY?.trim();
+  // Dán cứng Key vào đây để Native iOS có thể đọc được
+  const geminiApiKey = '<REDACTED_GEMINI_KEY>';
   const availableGeminiModelsRef = useRef<string[] | null>(null);
 
   // ==========================================================================

@@ -4,7 +4,6 @@ const config: CapacitorConfig = {
   appId: 'com.vlu.digiwell',
   appName: 'DigiWell',
   webDir: 'dist',
-  bundledWebRuntime: false,
   plugins: {
     CapacitorHttp: {
       enabled: true,
