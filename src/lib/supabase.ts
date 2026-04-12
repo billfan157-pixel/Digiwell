@@ -1,8 +1,8 @@
 import { createClient } from '@supabase/supabase-js';
 
 // Thông tin kết nối trực tiếp cho DigiWell project
-const supabaseUrl = 'https://psaypwhpxtpncvgeenue.supabase.co';
-const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBzYXlwd2hweHRwbmN2Z2VlbnVlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDAwMzQ4MDIsImV4cCI6MjA1NTYxMDgwMn0.HofRizpT6tYp-w9i3v0Iq7Q29fA0p3X9q3_T9X9-D9k';
+const supabaseUrl = 'https://plbwqjdrivyffrhpbmvm.supabase.co';
+const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBsYndxamRyaXZ5ZmZyaHBibXZtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUxMjY3NjYsImV4cCI6MjA5MDcwMjc2Nn0.nZDHmQyVdn4a99zISog9-hzOzsFQ7G8RClV8GPe7sJw';
 
 // Khởi tạo supabase client
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
