@@ -51,5 +51,17 @@
 	<string>Chúng tôi cần đọc dữ liệu sức khỏe để theo dõi hoạt động của bạn.</string>
 	<key>NSHealthUpdateUsageDescription</key>
 	<string>Chúng tôi cần ghi dữ liệu sức khỏe để cập nhật tiến trình của bạn.</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>com.vlu.digiwell</string>
+				<string>digiwell</string>
+			</array>
+		</dict>
+	</array>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Ứng dụng cần vị trí của bạn để cập nhật thời tiết chính xác tại khu vực của bạn.</string>
 </dict>
 </plist>

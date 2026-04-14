@@ -1,17 +1,14 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { 
-  Droplet, Eye, ShieldCheck, Coffee,
-  Lock, Trophy, Target, Watch, Bluetooth, RefreshCw,
-  CloudSun, Calendar, Bell, Sparkles,
-  Users, UserPlus, Search, Share2, Edit2, ImagePlus, UserMinus, Plus, X
+import {
+  Trophy, Target, Watch, RefreshCw,
+  CloudSun, Calendar,
+  Users, UserPlus, Search, Share2, Edit2, ImagePlus, UserMinus, Plus
 } from 'lucide-react';
 import { Toaster, toast } from 'sonner';
 import { supabase, isSupabaseConfigured } from './lib/supabase';
-import { GoogleGenAI } from '@google/genai';
 import { Capacitor } from '@capacitor/core';
 import { App as CapacitorApp } from '@capacitor/app';
 import { Browser } from '@capacitor/browser';
-import { Health } from '@capgo/capacitor-health';
 import { LocalNotifications, type ActionPerformed } from '@capacitor/local-notifications';
 import {
   DEFAULT_HYDRATION_REMINDER_SETTINGS,
@@ -36,24 +33,119 @@ import {
   type SocialFeedPost,
   type SocialProfileStats,
 } from './lib/social';
+import { scanDrinkFromImage, isAiConfigured } from './lib/ai';
 
-import { useWaterData } from './useWaterData';
 import WelcomeScreen from './WelcomeScreen';
 import LoginScreen from './LoginScreen';
 import RegisterScreen from './RegisterScreen';
 import AiChatModal from './components/modals/AiChatModal';
 import BottomNav, { type TabType } from './components/layout/BottomNav';
-import HomeTab, { type DrinkPreset, renderIcon, presetStyles } from './tabs/HomeTab';
-import AutoActivityCard from './components/AutoActivityCard';
+import HomeTab, { type DrinkPreset } from './tabs/HomeTab';
 import FeedTab from './tabs/FeedTab';
 import ProfileTab from './tabs/ProfileTab';
 import InsightTab from './tabs/InsightTab';
 import LeagueTab from './tabs/LeagueTab';
+import HistoryModal from './components/modals/HistoryModal';
+import EditEntryModal from './components/modals/EditEntryModal';
+import SmartHubModal from './components/modals/SmartHubModal';
+import CustomDrinkModal from './components/modals/CustomDrinkModal';
+import PremiumModal from './components/modals/PremiumModal';
+import PresetManagerModal from './components/modals/PresetManagerModal';
+import OnboardingModal from './components/modals/OnboardingModal';
+import AddFriendModal from './components/modals/AddFriendModal';
+import ProfileSettingsModal from './components/modals/ProfileSettingsModal';
+import EditProfileModal from './components/modals/EditProfileModal';
+import { useWaterData } from './hooks/useWaterData';
+import { useWeatherSync } from './hooks/useWeatherSync';
+import { useCalendarSync } from './hooks/useCalendarSync';
+import { useAppleHealth } from './hooks/useAppleHealth';
+import { useGeminiAI } from './hooks/useGeminiAI';
+
+// ==========================================================================
+// HOLO PET - MECHANICAL PHOENIX COMPONENT
+// ==========================================================================
+const MechanicalPhoenix = ({ progress }: { progress: number }) => {
+  const safeProgress = Math.round(progress);
+  const isLow = safeProgress < 30;
+  const isHigh = safeProgress >= 70;
+
+  const coreColor = isLow ? '#ef4444' : isHigh ? '#0ea5e9' : '#f59e0b';
+  const wingColor = isLow ? '#7f1d1d' : isHigh ? '#0284c7' : '#b45309';
+  const auraColor = isLow ? 'rgba(239, 68, 68, 0.4)' : isHigh ? 'rgba(14, 165, 233, 0.4)' : 'rgba(245, 158, 11, 0.4)';
+
+  return (
+    <div className="relative w-full h-full flex items-center justify-center p-1">
+      {/* Glowing Aura */}
+      <div 
+        className={`absolute inset-0 rounded-full blur-lg ${isLow ? 'animate-pulse' : 'animate-[pulse_2s_ease-in-out_infinite]'}`} 
+        style={{ backgroundColor: auraColor, transform: 'scale(0.8)' }}
+      ></div>
+      
+      <svg viewBox="0 0 100 100" className={`w-full h-full relative z-10 drop-shadow-2xl ${isHigh ? 'animate-[bounce_3s_infinite]' : 'animate-[bounce_2s_infinite]'}`}>
+        <defs>
+          <linearGradient id={`wingGrad-${safeProgress}`} x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stopColor={wingColor} />
+            <stop offset="100%" stopColor={coreColor} />
+          </linearGradient>
+          <filter id="neonGlow">
+            <feGaussianBlur stdDeviation="2" result="blur" />
+            <feMerge>
+              <feMergeNode in="blur" />
+              <feMergeNode in="SourceGraphic" />
+            </feMerge>
+          </filter>
+        </defs>
+        
+        <path d="M45,70 L50,95 L55,70 Z" fill={`url(#wingGrad-${safeProgress})`} className="animate-pulse" filter="url(#neonGlow)"/>
+        <path d="M40,50 L5,20 L20,55 L0,60 L35,65 Z" fill="none" stroke={coreColor} strokeWidth="2.5" strokeLinejoin="round" filter="url(#neonGlow)"/>
+        <path d="M40,50 L15,35 L25,50 Z" fill={`url(#wingGrad-${safeProgress})`} />
+        <path d="M60,50 L95,20 L80,55 L100,60 L65,65 Z" fill="none" stroke={coreColor} strokeWidth="2.5" strokeLinejoin="round" filter="url(#neonGlow)"/>
+        <path d="M60,50 L85,35 L75,50 Z" fill={`url(#wingGrad-${safeProgress})`} />
+        <polygon points="50,35 62,50 50,68 38,50" fill={`url(#wingGrad-${safeProgress})`} stroke="#fff" strokeWidth="1" filter="url(#neonGlow)"/>
+        <path d="M42,35 L50,10 L58,35 Z" fill={`url(#wingGrad-${safeProgress})`} />
+        <path d="M48,25 L50,5 L52,25 Z" fill="#fff" className="animate-pulse"/>
+        <circle cx="50" cy="28" r="2.5" fill="#fff" className="animate-ping" />
+        <circle cx="50" cy="50" r="4" fill="#ffffff" filter="url(#neonGlow)" className="animate-pulse" />
+      </svg>
+    </div>
+  );
+};
 
 // ============================================================================
 // DIGIWELL SMART WELLNESS - PREMIUM DARK UI (V7 FIXED)
 // FIX #1: handleRegister upsert profiles sau signUp
 // FIX #2: waterGoal tự động theo Calendar/Watch thay vì currentActivity thủ công
+// ============================================================================
+// TYPES
+// ==========================================================================
+interface Profile {
+  id: string;
+  nickname: string;
+  gender: string;
+  age: number;
+  height: number;
+  weight: number;
+  activity: string;
+  climate: string;
+  goal: string;
+  wakeUp?: string;
+  bedTime?: string;
+}
+
+interface Friend {
+  id: string;
+  name: string;
+  dept: string;
+  wp: number;
+  streak: number;
+  isMe: boolean;
+}
+
+interface SearchResult {
+  id: string;
+  nickname: string;
+}
+
 // ============================================================================
 
 function AppContent() {
@@ -64,14 +156,21 @@ function AppContent() {
   // Lắng nghe Deep Link để đóng In-App Browser và truyền Token cho Supabase
   useEffect(() => {
     if (Capacitor.isNativePlatform()) {
-      const sub = CapacitorApp.addListener('appUrlOpen', (event) => {
-        if (event.url.includes('login-callback')) {
+      const sub = CapacitorApp.addListener('appUrlOpen', async (event) => {
+        if (event.url.includes('login-callback') || event.url.includes('access_token') || event.url.includes('code=')) {
           Browser.close().catch(() => {});
           // Trích xuất chuỗi token từ URL Scheme và đẩy vào window.location để Supabase tự bắt
           const urlStr = event.url;
           if (urlStr.includes('#') || urlStr.includes('?')) {
             const fragment = urlStr.substring(urlStr.indexOf(urlStr.includes('?') ? '?' : '#'));
             window.location.href = `${window.location.origin}${window.location.pathname}${fragment}`;
+            
+            setTimeout(async () => {
+              const { data } = await supabase!.auth.getSession();
+              if (data?.session) {
+                setView('app');
+              }
+            }, 500);
           }
         }
       });
@@ -84,19 +183,12 @@ function AppContent() {
   // ==========================================================================
   const [view, setView] = useState<'welcome' | 'login' | 'register' | 'app'>('welcome');
   const [activeTab, setActiveTab] = useState<TabType>('home');
-  const [isWatchConnected, setIsWatchConnected] = useState(false);
-  const [watchData, setWatchData] = useState({ heartRate: 0, steps: 0 });
-  const [isWeatherSynced, setIsWeatherSynced] = useState(false);
-  const [weatherData, setWeatherData] = useState({ temp: 28, location: 'TP. Hồ Chí Minh', status: 'Nắng nhẹ' });
-  const [isCalendarSynced, setIsCalendarSynced] = useState(false);
-  
-  const [calendarEvents, setCalendarEvents] = useState([
-    { time: '09:00', title: 'Học môn Digital Citizen', location: 'Phòng A.05' },
-    { time: '14:00', title: 'Họp nhóm đồ án', location: 'Café Highland' }
-  ]);
+  const { isWeatherSynced, setIsWeatherSynced, weatherData, syncWeather } = useWeatherSync();
+  const { isCalendarSynced, setIsCalendarSynced, calendarEvents, syncCalendar } = useCalendarSync();
+  const { isWatchConnected, setIsWatchConnected, watchData } = useAppleHealth();
   
   const [now, setNow] = useState(() => new Date());
-  const [profile, setProfile] = useState<any>(null);
+   const [profile, setProfile] = useState<Profile | null>(null);
   
   const [loginPrefill, setLoginPrefill] = useState('');
   
@@ -144,9 +236,6 @@ function AppContent() {
 
   // State cho Chat AI Premium
   const [showAiChat, setShowAiChat] = useState(false);
-  const [chatMessages, setChatMessages] = useState<{role: string, content: string}[]>([]);
-  const [isChatLoading, setIsChatLoading] = useState(false);
-  const [chatInput, setChatInput] = useState('');
 
   // ==========================================================================
   // [NEW] PREMIUM FEATURES STATES
@@ -165,8 +254,8 @@ function AppContent() {
   // Social & Friends
   const [showAddFriend, setShowAddFriend] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [friendsList, setFriendsList] = useState<any[]>([]);
-  const [searchResults, setSearchResults] = useState<any[]>([]);
+   const [friendsList, setFriendsList] = useState<Friend[]>([]);
+   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [showSocialComposer, setShowSocialComposer] = useState(false);
   const [showDiscoverPeople, setShowDiscoverPeople] = useState(false);
@@ -194,15 +283,6 @@ function AppContent() {
   const [editProfileData, setEditProfileData] = useState({
     nickname: '', gender: 'Nam', age: 20, height: 172, weight: 82, activity: 'active', climate: 'Nhiệt đới (Nóng)', goal: 'Giảm mỡ & Tăng cơ'
   });
-
-  // ==========================================================================
-  // [NEW] REAL AI GEMINI STATES
-  // ==========================================================================
-  const [aiAdvice, setAiAdvice] = useState<string>('');
-  const [isAiLoading, setIsAiLoading] = useState(false);
-  // Dán cứng Key vào đây để Native iOS có thể đọc được
-  const geminiApiKey = '<REDACTED_GEMINI_KEY>';
-  const availableGeminiModelsRef = useRef<string[] | null>(null);
 
   // ==========================================================================
   // [2] LOGIC SUPABASE CLOUD SYNC
@@ -236,7 +316,7 @@ function AppContent() {
         .eq('user_id', profile.id);
       if (fErr || !fData) return;
       
-      const friendIds = fData.map((f: any) => f.friend_id);
+      const friendIds = fData.map((f: { friend_id: string }) => f.friend_id);
       if (friendIds.length === 0) {
         setFriendsList([]);
         return;
@@ -249,8 +329,8 @@ function AppContent() {
       const { data: wData } = await supabase!.from('water_logs').select('user_id, intake_ml').eq('day', todayStr).in('user_id', friendIds);
 
       if (pData) {
-        const formattedFriends = pData.map((p: any) => {
-          const waterLog = wData?.find((w: any) => w.user_id === p.id);
+        const formattedFriends = pData.map((p: { id: string; nickname: string }) => {
+          const waterLog = wData?.find((w: { user_id: string; intake_ml: number }) => w.user_id === p.id);
           const intake = waterLog ? waterLog.intake_ml : 0;
           return { 
             id: p.id, 
@@ -282,7 +362,7 @@ function AppContent() {
       .ilike('nickname', `%${query}%`)
       .neq('id', profile?.id)
       .limit(5);
-    if (!error && data) setSearchResults(data.map((u: any) => ({ ...u, nickname: u.nickname || 'Người dùng' })));
+    if (!error && data) setSearchResults(data.map((u: SearchResult) => ({ ...u, nickname: u.nickname || 'Người dùng' })));
     setIsSearching(false);
   };
 
@@ -465,7 +545,7 @@ function AppContent() {
     if (profile?.id && !localStorage.getItem(`digiwell_onboarded_${profile.id}`)) {
       setShowOnboarding(true);
     }
-  }, [profile?.id]);
+  }, [profile?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (profile?.id && isPrefsLoaded) {
@@ -511,7 +591,7 @@ function AppContent() {
     return () => {
       ignore = true;
     };
-  }, [profile?.id, isPrefsLoaded]);
+  }, [profile?.id, isPrefsLoaded]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!supportsNativeHydrationReminders()) return;
@@ -553,7 +633,7 @@ function AppContent() {
       }
       toast.success(`Đã ghi nhận ${pendingActions.length} lần uống nước từ notification.`);
     })();
-  }, [profile?.id, view]);
+  }, [profile?.id, view]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (activeTab === 'feed' && profile?.id) {
@@ -613,63 +693,6 @@ function AppContent() {
     document.addEventListener('visibilitychange', onVis);
     return () => { stop(); document.removeEventListener('visibilitychange', onVis); };
   }, []);
-
-  useEffect(() => {
-    if (!isWatchConnected) return;
-
-    let interval: number;
-
-    const fetchRealHealthData = async () => {
-      // Fallback: Chạy trên Web/Android thì dùng mock data để không bị crash
-      if (Capacitor.getPlatform() !== 'ios') {
-        setWatchData(prev => ({ 
-          heartRate: Math.floor(Math.random() * 14) + 72, 
-          steps: prev.steps + Math.floor(Math.random() * 3) 
-        }));
-        return;
-      }
-
-      try {
-        // 1. Xin quyền đọc dữ liệu từ Apple Health
-        await Health.requestAuthorization({
-          read: ['steps', 'heartRate'],
-          write: []
-        });
-
-        // 2. Lấy thời gian từ đầu ngày hôm nay
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        
-        // 3. Yêu cầu Apple Health tự tính TỔNG bước chân trong ngày
-        const stepsRes = await Health.queryAggregated({
-          dataType: 'steps',
-          startDate: today.toISOString(),
-          endDate: new Date().toISOString(),
-          bucket: 'day',
-          aggregation: 'sum'
-        });
-        const totalSteps = stepsRes?.samples && stepsRes.samples.length > 0 ? stepsRes.samples[0].value : 0;
-
-        // 4. Query nhịp tim gần nhất (lấy limit: 1)
-        const hrRes = await Health.readSamples({
-          dataType: 'heartRate',
-          startDate: today.toISOString(),
-          endDate: new Date().toISOString(),
-          limit: 1
-        });
-        const latestHR = hrRes?.samples && hrRes.samples.length > 0 ? hrRes.samples[0].value : 75;
-
-        setWatchData({ heartRate: Math.round(latestHR), steps: Math.round(totalSteps) });
-      } catch (error) {
-        console.error("Lỗi đọc Apple Health:", error);
-      }
-    };
-
-    fetchRealHealthData();
-    interval = window.setInterval(fetchRealHealthData, 10000); // Lấy data mỗi 10 giây
-
-    return () => clearInterval(interval);
-  }, [isWatchConnected]);
 
   // ==========================================================================
   // [4] THUẬT TOÁN TÍNH TOÁN (ALGORITHMS)
@@ -930,7 +953,8 @@ function AppContent() {
           storyMap.set(post.author_id, post);
           acc.push(post);
           return acc;
-        }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
 
       setSocialStories(latestStories);
       setSocialPosts(mappedPosts.filter(post => post.post_kind !== 'story'));
@@ -976,303 +1000,6 @@ function AppContent() {
     }
 
     await handleAddWater(intent.amount, 1, intent.name);
-  };
-
-  const createGeminiClient = () => {
-    if (!geminiApiKey) throw new Error("Chưa cấu hình VITE_GEMINI_API_KEY");
-    return new GoogleGenAI({ apiKey: geminiApiKey });
-  };
-
-  const getGenerateContentModels = async (ai: GoogleGenAI) => {
-    if (availableGeminiModelsRef.current?.length) return availableGeminiModelsRef.current;
-
-    const preferredModels = [
-      'models/gemini-2.5-flash',
-      'models/gemini-2.5-flash-lite',
-      'models/gemini-2.0-flash',
-      'models/gemini-2.0-flash-lite',
-      'models/gemini-flash-latest',
-      'models/gemini-flash-lite-latest',
-    ];
-
-    try {
-      const pager = await ai.models.list({ config: { pageSize: 100 } });
-      const availableModels = new Set<string>();
-
-      for await (const model of pager) {
-        if (model.name && model.supportedActions?.includes('generateContent')) {
-          availableModels.add(model.name);
-        }
-      }
-
-      const modelsToTry = preferredModels.filter(modelName => availableModels.has(modelName));
-      if (modelsToTry.length > 0) {
-        availableGeminiModelsRef.current = modelsToTry;
-        return modelsToTry;
-      }
-    } catch (error) {
-      console.warn('Không thể tải danh sách Gemini models:', error);
-    }
-
-    availableGeminiModelsRef.current = preferredModels;
-    return preferredModels;
-  };
-
-  const getGeminiErrorMessage = (error: unknown) => {
-    const rawMessage = error instanceof Error ? error.message : String(error);
-
-    if (
-      rawMessage.includes('NOT_FOUND') &&
-      rawMessage.toLowerCase().includes('models/')
-    ) {
-      return "Model Gemini cũ không còn hỗ trợ cho generateContent nữa.";
-    }
-
-    if (
-      rawMessage.includes('RESOURCE_EXHAUSTED') ||
-      rawMessage.includes('"code":429') ||
-      rawMessage.toLowerCase().includes('quota exceeded')
-    ) {
-      return "Gemini API đang hết quota hoặc project Google AI Studio chưa bật billing.";
-    }
-
-    return rawMessage;
-  };
-
-  // Gọi AI Gemini thật
-  const fetchAIAdvice = async () => {
-    if (isAiLoading) return;
-    setIsAiLoading(true);
-    
-    try {
-      // Tạo Context (Bối cảnh) gửi cho AI
-      const prompt = `Bạn là trợ lý sức khỏe AI của app DigiWell.
-      Thông tin của tôi lúc này:
-      - Thời gian: ${now.getHours()} giờ ${now.getMinutes()} phút
-      - Lượng nước đã uống: ${waterIntake}/${waterGoal} ml
-      - Thời tiết hiện tại: ${weatherData.temp}°C, ${weatherData.status}
-      - Nhịp tim: ${watchData.heartRate} BPM, Số bước: ${watchData.steps}
-      - Sự kiện sắp tới: ${isCalendarSynced ? calendarEvents[0]?.title : 'Không có lịch'}
-      
-      Dựa vào các thông tin trên, hãy đưa ra 1 lời khuyên thật ngắn gọn, tự nhiên, thân thiện (dưới 35 chữ) về việc uống nước hoặc nghỉ ngơi. Không cần chào hỏi dài dòng.`;
-
-      const ai = createGeminiClient();
-      
-      // Tự động lấy danh sách model generateContent mà API Key của bạn đang hỗ trợ
-      const modelsToTry = await getGenerateContentModels(ai);
-      let advice = "";
-      let lastErr = null;
-      
-      for (const modelName of modelsToTry) {
-        try {
-          console.log(`Đang gọi AI bằng model: ${modelName}...`);
-          const result = await ai.models.generateContent({
-            model: modelName,
-            contents: prompt
-          });
-          advice = result.text || "";
-          console.log("AI chạy thành công!");
-          break; // Thành công thì thoát vòng lặp ngay
-        } catch (e: any) { 
-          console.error(`Lỗi ở model ${modelName}:`, e.message); // IN LỖI CHI TIẾT RA ĐÂY
-          lastErr = e; 
-        }
-      }
-      
-      if (!advice) throw lastErr || new Error("Tất cả model AI đều bị từ chối");
-      
-      setAiAdvice(advice.replace(/\*/g, '')); // Xóa các dấu * in đậm của markdown nếu có
-    } catch (err: any) {
-      const message = getGeminiErrorMessage(err);
-      toast.error("Lỗi AI: " + message);
-      setAiAdvice(message.includes('hết quota')
-        ? "Gemini API đang hết quota, kiểm tra billing rồi thử lại nhé!"
-        : "Hệ thống AI đang bảo trì, vui lòng uống đủ nước bạn nhé!");
-    } finally {
-      setIsAiLoading(false);
-    }
-  };
-
-  const handleSendChatMessage = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!chatInput.trim() || isChatLoading) return;
-    const userMsg = chatInput.trim();
-    setChatMessages(prev => [...prev, { role: 'user', content: userMsg }]);
-    setChatInput('');
-    setIsChatLoading(true);
-
-    try {
-      // Lấy Context động (Hàm này giúp cập nhật lại thông tin nước NGAY LẬP TỨC sau khi AI gọi Tool)
-      const getSystemPrompt = () => {
-        const historyText = waterEntriesRef.current.length > 0 
-          ? `Lịch sử uống nước hôm nay:\n` + waterEntriesRef.current.map(e => `- ${new Date(e.timestamp).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}: ${e.actual_ml || e.amount}ml ${e.name}`).join('\n')
-          : 'Chưa có ghi nhận nào.';
-
-        const weatherStr = isWeatherSynced ? `\n- Thời tiết hiện tại: ${weatherData.temp}°C, ${weatherData.status}` : '';
-        const watchStr = isWatchConnected ? `\n- Tình trạng vận động: ${watchData.steps} bước, nhịp tim ${watchData.heartRate} BPM` : '';
-
-        return `Bạn là "DigiCoach" - một chuyên gia sức khỏe AI thân thiện, vui tính và cực kỳ thông minh của ứng dụng DigiWell.
-Tên người dùng: ${profile?.nickname || 'Bạn'}
-Thời gian thực: ${new Date().toLocaleTimeString('vi-VN')}
-
-Nhiệm vụ & Kỷ luật thép (BẮT BUỘC TUÂN THỦ):
-1. Luôn xưng hô "Mình", gọi người dùng là "${profile?.nickname || 'Bạn'}". Trả lời siêu ngắn gọn như tin nhắn người thật, kèm emoji.
-2. TUYỆT ĐỐI KHÔNG ĐƯỢC TỰ CỘNG NHẨM TRONG ĐẦU. Khi người dùng báo vừa uống nước/sữa/trà/bia..., BẮT BUỘC gọi Tool 'recordWaterIntake' để ghi nhận vào app.
-3. BẮT BUỘC gọi Tool 'deleteLastWaterIntake' nếu người dùng nói lỡ nhập sai hoặc muốn xóa ly nước vừa nãy.
-4. Nếu gọi Tool, hệ thống sẽ trả về kết quả. Đọc kết quả đó và phản hồi lại bằng văn bản 1 cách tự nhiên nhất.
-
-Chỉ số sức khỏe hiện tại của người dùng:
-- Đã uống: ${waterIntakeRef.current}/${waterGoal} ml (Còn thiếu ${Math.max(waterGoal - waterIntakeRef.current, 0)} ml)${weatherStr}${watchStr}
-
-${historyText}`;
-      };
-
-      // Đưa toàn bộ lịch sử chat vào để AI nhớ ngữ cảnh
-      const conversation: any[] = chatMessages.map(msg => ({
-        role: msg.role === 'assistant' ? 'model' : 'user', // API Gemini dùng 'model' thay vì 'assistant'
-        parts: [{ text: msg.content }]
-      }));
-      conversation.push({ role: 'user', parts: [{ text: userMsg }] });
-
-      const ai = createGeminiClient();
-      const modelsToTry = await getGenerateContentModels(ai);
-      let advice = "";
-      let lastErr: unknown = null;
-
-      // Cấu hình Native Function Calling cho Gemini
-      const tools = [{
-        functionDeclarations: [{
-          name: 'recordWaterIntake',
-          description: 'BẮT BUỘC GỌI HÀM NÀY khi người dùng nói họ vừa uống bất kỳ loại đồ uống nào (nước, trà, sữa, cà phê, bia...). Công cụ sẽ tự động xử lý và cộng vào hệ thống.',
-          parameters: {
-            type: 'OBJECT' as any,
-            properties: {
-              amount: { type: 'INTEGER' as any, description: 'Dung tích tính bằng ml (vd: 200, 300)' },
-              factor: { type: 'NUMBER' as any, description: 'Hệ số: Nước/Nước trái cây=1.0, Cà phê/Trà=0.8, Sữa=1.1, Cồn=-0.5' },
-              name: { type: 'STRING' as any, description: 'Tên loại đồ uống (vd: Nước lọc, Cà phê, Bia)' }
-            },
-            required: ['amount', 'factor', 'name']
-          }
-        }]
-      }, {
-        functionDeclarations: [{
-          name: 'navigateTab',
-          description: 'Mở các thẻ (tab) chức năng của ứng dụng (Trang chủ, Thống kê, Bảng xếp hạng, Cộng đồng, Hồ sơ).',
-          parameters: {
-            type: 'OBJECT' as any,
-            properties: {
-              tabName: { type: 'STRING' as any, description: 'Chỉ định 1 trong: "home", "insight", "league", "feed", "profile"' }
-            },
-            required: ['tabName']
-          }
-        }]
-      }, {
-        functionDeclarations: [{
-          name: 'deleteLastWaterIntake',
-          description: 'Hủy hoặc xóa lần ghi nhận nước uống gần nhất trong ngày khi người dùng nói họ nhập nhầm, nhập sai, hoặc bảo xóa bớt đi.',
-          parameters: {
-            type: 'OBJECT' as any,
-            properties: {
-              reason: { type: 'STRING' as any, description: 'Lý do xóa' }
-            }
-          }
-        }]
-      }, {
-        functionDeclarations: [{
-          name: 'triggerSystemAction',
-          description: 'Thực hiện các hành động hệ thống như: "export_pdf" (xuất báo cáo y khoa PDF), "toggle_fasting" (bật/tắt nhịn ăn), "open_history" (mở lịch sử).',
-          parameters: {
-            type: 'OBJECT' as any,
-            properties: {
-              action: { type: 'STRING' as any, description: 'Các hành động hỗ trợ: "export_pdf", "toggle_fasting", "open_history"' }
-            },
-            required: ['action']
-          }
-        }]
-      }];
-
-      for (const modelName of modelsToTry) {
-        try {
-          let currentConversation = [...conversation];
-          let loopCount = 0;
-          let isDone = false;
-
-          // Khởi tạo Agentic Loop (Tối đa 3 bước: Suy nghĩ -> Gọi hàm -> Trả lời)
-          while (loopCount < 3 && !isDone) {
-            loopCount++;
-            const result = await ai.models.generateContent({ 
-              model: modelName, 
-              contents: currentConversation,
-              config: { 
-                systemInstruction: getSystemPrompt(), // Lấy context mới nhất sau mỗi hành động
-                tools: tools 
-              }
-            });
-            
-            if (result.functionCalls && result.functionCalls.length > 0) {
-              const call = result.functionCalls[0];
-              let functionResult: any = {};
-
-              if (call.name === 'recordWaterIntake') {
-                const { amount, factor, name } = call.args as any;
-                const newTotal = await handleAddWater(amount, factor, name);
-                functionResult = { success: true, message: `Đã cộng ${amount}ml (${name}). Nước hiện tại: ${newTotal}/${waterGoal}ml` };
-              } else if (call.name === 'deleteLastWaterIntake') {
-                if (waterEntriesRef.current.length > 0) {
-                  const lastEntry = waterEntriesRef.current[waterEntriesRef.current.length - 1];
-                  const newTotal = await handleDeleteEntry(lastEntry.id);
-                  functionResult = { success: true, message: `Đã xóa ${lastEntry.actual_ml || lastEntry.amount}ml gần nhất. Nước còn lại: ${newTotal}ml.` };
-                } else {
-                  functionResult = { success: false, message: `Không có dữ liệu nước nào hôm nay để xóa.` };
-                }
-              } else if (call.name === 'navigateTab') {
-                const { tabName } = call.args as any;
-                if (['home', 'insight', 'league', 'feed', 'profile'].includes(tabName)) {
-                  setActiveTab(tabName as TabType);
-                  setTimeout(() => setShowAiChat(false), 1500);
-                  functionResult = { success: true, message: `Đã chuyển đến trang ${tabName}` };
-                } else {
-                  functionResult = { success: false, message: `Trang ${tabName} không tồn tại` };
-                }
-              } else if (call.name === 'triggerSystemAction') {
-                const { action } = call.args as any;
-                if (action === 'export_pdf') {
-                  handleExportPDF();
-                  functionResult = { success: true, message: 'Đã yêu cầu xuất PDF.' };
-                } else if (action === 'toggle_fasting') {
-                  toggleFastingMode();
-                  functionResult = { success: true, message: 'Đã đổi chế độ Fasting.' };
-                } else if (action === 'open_history') {
-                  setShowHistory(true);
-                  functionResult = { success: true, message: 'Đã mở màn hình lịch sử uống nước.' };
-                }
-              }
-
-              // Nạp lại kết quả vào cuộc hội thoại để AI đọc và phản hồi
-              currentConversation.push({ role: 'model', parts: [{ functionCall: call }] });
-              currentConversation.push({ role: 'user', parts: [{ functionResponse: { name: call.name, response: functionResult } }] });
-              
-              // Vòng lặp sẽ tiếp tục ở bước tiếp theo để lấy Text phản hồi từ AI
-            } else if (result.text) { 
-              advice = result.text; 
-              isDone = true; 
-            } else {
-              isDone = true;
-            }
-          }
-          if (advice) {
-            break;
-          }
-        } catch (err) { lastErr = err; }
-      }
-      if (!advice) throw lastErr || new Error("Không nhận được phản hồi");
-
-      setChatMessages(prev => [...prev, { role: 'assistant', content: advice }]);
-    } catch (err: any) {
-      setChatMessages(prev => [...prev, { role: 'assistant', content: "Xin lỗi, hiện tại hệ thống AI đang quá tải. Vui lòng thử lại sau!" }]);
-    } finally {
-      setIsChatLoading(false);
-    }
   };
 
   const updateReminderSetting = <K extends keyof HydrationReminderSettings>(
@@ -1563,11 +1290,11 @@ ${historyText}`;
       `;
 
       // FIX BUG: Xóa lỗi cú pháp backslash (\`) cản trở biên dịch JS
-      const opt = { margin: 1, filename: `DigiWell_Report_${new Date().toISOString().slice(0,10)}.pdf`, image: { type: 'jpeg', quality: 0.98 }, html2canvas: { scale: 2 }, jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' } };
+      const opt = { margin: 1, filename: 'DigiWell_Report_' + new Date().toISOString().slice(0,10) + '.pdf', image: { type: 'jpeg', quality: 0.98 }, html2canvas: { scale: 2 }, jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' } };
       await html2pdf().set(opt).from(reportDiv).save();
       
       toast.success("Đã tải xuống báo cáo PDF thành công!", { id: tid });
-    } catch (error) {
+    } catch {
       toast.error("Có lỗi xảy ra khi tạo PDF!", { id: tid });
     } finally {
       setIsExportingPDF(false);
@@ -1632,155 +1359,12 @@ ${historyText}`;
     }
   };
 
-  const syncWeather = async () => {
-    toast.info("Đang truy xuất vị trí và thời tiết...");
-    
-    if (!navigator.geolocation) {
-      toast.error("Trình duyệt không hỗ trợ định vị GPS!");
-      return;
-    }
-
-    navigator.geolocation.getCurrentPosition(async (position) => {
-      try {
-        const { latitude, longitude } = position.coords;
-        const apiKey = import.meta.env.VITE_WEATHER_API_KEY || '9bc63ef84a50831427890f388bf72ffa';
-        
-        if (!apiKey) {
-          toast.warning("Chưa có API Key, dùng dữ liệu giả lập!");
-          setWeatherData({ temp: 34, location: 'Quận 1, HCM', status: 'Nắng gắt (Mock)' });
-          setIsWeatherSynced(true);
-          return;
-        }
-
-        const res = await fetch(`https://api.openweathermap.org/data/2.5/weather?lat=${latitude}&lon=${longitude}&units=metric&lang=vi&appid=${apiKey}`);
-        if (!res.ok) {
-          const errorData = await res.json().catch(() => ({}));
-          console.error("Chi tiết lỗi OpenWeather:", errorData);
-          toast.warning("API Key chưa kích hoạt hoặc không hợp lệ. Đang dùng dữ liệu giả lập!");
-          setWeatherData({ temp: 34, location: 'Khu vực của bạn', status: 'Nắng gắt (Mock)' });
-          setIsWeatherSynced(true);
-          return;
-        }
-        
-        const data = await res.json();
-        setWeatherData({ 
-          temp: Math.round(data.main.temp), 
-          location: data.name, 
-          status: data.weather[0].description.charAt(0).toUpperCase() + data.weather[0].description.slice(1)
-        });
-        
-        setIsWeatherSynced(true);
-        toast.success(data.main.temp > 30 ? `Trời nóng (${Math.round(data.main.temp)}°C)! Đã tăng mục tiêu nước.` : `Đã cập nhật thời tiết tại ${data.name}`);
-      } catch (err: any) {
-        toast.error("Không thể lấy thời tiết: " + err.message);
-      }
-    }, () => toast.error("Vui lòng cấp quyền vị trí để xem thời tiết!"));
-  };
-
-  const syncCalendar = async () => {
-    toast.info("Đang kết nối Google Calendar...");
-    
-    try {
-      // LƯU Ý: Để chạy được thật, bạn cần có Provider Token của Google.
-      // Thường lấy từ Supabase Session nếu bạn cho người dùng Đăng nhập bằng Google.
-      const googleAccessToken = localStorage.getItem('google_provider_token'); 
-
-      if (!googleAccessToken) {
-        if (confirm("Bạn chưa kết nối tài khoản Google. Bạn có muốn kết nối ngay để đồng bộ lịch không?")) {
-          const tid = toast.loading("Đang chuyển trang... Vui lòng đăng nhập Google để cấp quyền đọc Lịch nhé!");
-          
-          setTimeout(async () => {
-            try {
-              // Thử dùng tính năng liên kết tài khoản của Supabase
-              if (typeof supabase!.auth.linkIdentity === 'function') {
-                const { data, error } = await supabase!.auth.linkIdentity({
-                  provider: 'google',
-                  options: { 
-                    scopes: 'https://www.googleapis.com/auth/calendar.readonly', 
-                    redirectTo: Capacitor.isNativePlatform() ? 'digiwell://login-callback' : window.location.origin,
-                    skipBrowserRedirect: Capacitor.isNativePlatform() 
-                  }
-                });
-                if (error) throw error;
-                if (data?.url && Capacitor.isNativePlatform()) await Browser.open({ url: data.url });
-              } else {
-                const { data, error } = await supabase!.auth.signInWithOAuth({
-                  provider: 'google',
-                  options: { 
-                    scopes: 'https://www.googleapis.com/auth/calendar.readonly', 
-                    redirectTo: Capacitor.isNativePlatform() ? 'digiwell://login-callback' : window.location.origin,
-                    skipBrowserRedirect: Capacitor.isNativePlatform()
-                  }
-                });
-                if (error) throw error;
-                if (data?.url && Capacitor.isNativePlatform()) await Browser.open({ url: data.url });
-              }
-            } catch (err: any) {
-              toast.dismiss(tid);
-              if (err.message?.includes('Manual linking is disabled')) {
-                toast.error("Lỗi: Hãy vào Supabase Dashboard -> Authentication -> Advanced và bật 'Allow manual linking' nhé!");
-              } else {
-                toast.error("Lỗi chuyển hướng Google: " + (err.message || "Hãy kiểm tra lại cấu hình Provider trên Supabase!"));
-              }
-            }
-          }, 1500);
-        } else {
-          toast.warning("Đang dùng dữ liệu lịch giả lập!");
-          setTimeout(() => { 
-            setIsCalendarSynced(true); 
-            toast.success("Đã tải 2 sự kiện hôm nay (Mock)!"); 
-          }, 1500);
-        }
-        return;
-      }
-
-      // Gọi API Google lấy lịch của ngày hôm nay
-      const startOfDay = new Date(); startOfDay.setHours(0,0,0,0);
-      const endOfDay = new Date(); endOfDay.setHours(23,59,59,999);
-
-      const res = await fetch(`https://www.googleapis.com/calendar/v3/calendars/primary/events?timeMin=${startOfDay.toISOString()}&timeMax=${endOfDay.toISOString()}&singleEvents=true&orderBy=startTime`, {
-        headers: { Authorization: `Bearer ${googleAccessToken}` }
-      });
-
-      if (res.status === 401) {
-        localStorage.removeItem('google_provider_token'); // Xóa token cũ đã hết hạn
-        setIsCalendarSynced(false);
-        throw new Error("Phiên bản Google đã hết hạn (1 giờ). Vui lòng bấm kết nối lại để cấp quyền mới!");
-      }
-      if (!res.ok) {
-        const errorData = await res.json().catch(() => ({}));
-        if (res.status === 403) {
-          localStorage.removeItem('google_provider_token'); // Xóa token thiếu quyền
-          setIsCalendarSynced(false);
-          throw new Error("Google từ chối! Bạn quên tích chọn ô cấp quyền Xem Lịch khi đăng nhập. Hãy kết nối lại nhé!");
-        }
-        throw new Error("Lỗi từ Google API: " + (errorData.error?.message || "Không rõ nguyên nhân"));
-      }
-
-      const data = await res.json();
-      const mappedEvents = data.items.map((item: any) => {
-        const startTime = new Date(item.start.dateTime || item.start.date);
-        return {
-          time: startTime.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }),
-          title: item.summary || 'Sự kiện không tên',
-          location: item.location || 'Lịch Online'
-        };
-      });
-
-      setCalendarEvents(mappedEvents.length > 0 ? mappedEvents : [{ time: '--:--', title: 'Trống lịch hôm nay', location: '-' }]);
-      setIsCalendarSynced(true);
-      toast.success(`Đã đồng bộ ${mappedEvents.length} sự kiện từ Google Calendar!`);
-    } catch (err: any) {
-      toast.error("Không thể đồng bộ lịch: " + err.message);
-    }
-  };
-
   const handleScan = () => {
-    if (!geminiApiKey) return toast.error("Vui lòng cấu hình VITE_GEMINI_API_KEY!");
+    if (!isAiConfigured()) return toast.error("Vui lòng cấu hình VITE_GEMINI_API_KEY!");
     fileInputRef.current?.click();
   };
 
-  const processImageScan = async (e: any) => {
+  const processImageScan = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     
@@ -1788,54 +1372,12 @@ ${historyText}`;
     const tid = toast.loading("AI đang phân tích hình ảnh...");
     
     try {
-      const reader = new FileReader();
-      reader.readAsDataURL(file);
-      reader.onload = async () => {
-        try {
-          const base64Data = (reader.result as string).split(',')[1];
-          const ai = createGeminiClient();
-          
-          const prompt = "Đây là hình ảnh một loại đồ uống. Hãy ước lượng dung tích và loại nước. Trả về ĐÚNG 1 dòng theo định dạng này: [Tên đồ uống] - [Dung tích dự đoán bằng số]ml. Ví dụ: Cà phê đen - 200ml. Nếu trong ảnh không có đồ uống, hãy trả về: Lỗi - Không nhận diện được.";
-          
-          const modelsToTry = await getGenerateContentModels(ai);
-          let responseText = "";
-          let lastErr = null;
-          
-          for (const modelName of modelsToTry) {
-            try {
-              const result = await ai.models.generateContent({
-                model: modelName,
-                contents: [ prompt, { inlineData: { data: base64Data, mimeType: file.type || 'image/jpeg' } } ]
-              });
-              responseText = result.text || "";
-              break;
-            } catch (e: any) { lastErr = e; }
-          }
-          
-          if (!responseText) throw lastErr || new Error("Không có model nào khả dụng để phân tích ảnh!");
-          if (responseText.includes("Lỗi")) throw new Error("Không nhận ra đồ uống trong ảnh!");
-          
-          const match = responseText.match(/(.*)\s*-\s*(\d+)\s*ml/i);
-          if (match) {
-            const name = match[1].trim();
-            const amount = parseInt(match[2]);
-            let factor = 1.0;
-            if (name.toLowerCase().includes("cà phê") || name.toLowerCase().includes("coffee")) factor = 0.8;
-            else if (name.toLowerCase().includes("bia") || name.toLowerCase().includes("rượu")) factor = -0.5;
-            
-            handleAddWater(amount, factor, `${name} (AI Scan)`);
-            toast.success(`AI nhận diện: ${name} (${amount}ml)`, { id: tid });
-          } else {
-            throw new Error("Không thể dự đoán dung tích!");
-          }
-        } catch (err: any) {
-          toast.error(getGeminiErrorMessage(err) || "Lỗi xử lý ảnh từ AI", { id: tid });
-        } finally {
-          setIsScanning(false);
-        }
-      };
+      const result = await scanDrinkFromImage(file);
+      await handleAddWater(result.amount, result.factor, `${result.name} (AI Scan)`);
+      toast.success(`AI nhận diện: ${result.name} (${result.amount}ml)`, { id: tid });
     } catch (err: any) {
       toast.error(err.message, { id: tid });
+    } finally {
       setIsScanning(false);
     }
     e.target.value = '';
@@ -1852,6 +1394,22 @@ ${historyText}`;
     ];
     return [ ...friendsList, myData ];
   };
+
+  const {
+    aiAdvice,
+    isAiLoading,
+    chatMessages,
+    setChatMessages,
+    isChatLoading,
+    chatInput,
+    setChatInput,
+    fetchAIAdvice,
+    handleSendChatMessage
+  } = useGeminiAI({
+    profile, waterIntake, waterGoal, weatherData, watchData, isWeatherSynced, isWatchConnected,
+    waterEntriesRef, waterIntakeRef, handleAddWater, handleDeleteEntry,
+    setActiveTab, setShowAiChat, handleExportPDF, toggleFastingMode, setShowHistory
+  });
 
   const card = "bg-slate-800/60 backdrop-blur-sm border border-slate-700/50 rounded-2xl";
   const cardGlow = "bg-slate-800/60 backdrop-blur-sm border border-cyan-500/20 rounded-2xl shadow-[0_0_20px_rgba(6,182,212,0.08)]";
@@ -2010,412 +1568,83 @@ ${historyText}`;
       <BottomNav activeTab={activeTab} setActiveTab={setActiveTab} />
 
       {/* ===== HISTORY MODAL ===== */}
-      {showHistory && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center" style={{ background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(4px)' }} onClick={() => setShowHistory(false)}>
-          <div className="w-full max-w-md rounded-t-3xl p-6 pb-10" style={{ background: '#1e293b', border: '1px solid rgba(6,182,212,0.2)' }} onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between mb-5">
-              <div>
-                <p className="text-cyan-400 text-[10px] font-bold uppercase tracking-widest">Hôm nay</p>
-                <h3 className="text-xl font-black text-white">Lịch sử uống nước</h3>
-              </div>
-              <button onClick={() => setShowHistory(false)} className="text-slate-400 text-xs bg-slate-700 px-3 py-1.5 rounded-lg font-bold">Đóng</button>
-            </div>
-
-            {waterEntries.length === 0 ? (
-              <div className="text-center py-10">
-                <Droplet size={36} className="text-slate-600 mx-auto mb-3" />
-                <p className="text-slate-400 text-sm">Chưa có ghi nhận nào hôm nay</p>
-              </div>
-            ) : (
-              <div className="space-y-2 max-h-96 overflow-y-auto">
-                {[...waterEntries].reverse().map((entry) => {
-                  const t = new Date(entry.timestamp);
-                  const timeStr = new Intl.DateTimeFormat('vi-VN', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }).format(t);
-                  return (
-                    <div key={entry.id} className="flex items-center gap-3 p-3 rounded-xl" style={{ background: 'rgba(6,182,212,0.06)', border: '1px solid rgba(6,182,212,0.12)' }}>
-                      <div className="w-9 h-9 rounded-xl bg-cyan-500/20 flex items-center justify-center flex-shrink-0">
-                        <Droplet size={16} className="text-cyan-400" />
-                      </div>
-                      <div className="flex-1">
-                        <p className={`font-bold text-sm ${(entry.actual_ml !== undefined && entry.actual_ml < 0) ? 'text-red-400' : 'text-white'}`}>
-                          {(entry.actual_ml !== undefined && entry.actual_ml < 0) ? '' : '+'}{entry.actual_ml || entry.amount} ml
-                        </p>
-                        <p className="text-slate-400 text-[10px] line-clamp-1 truncate pr-2">
-                          {timeStr} · {entry.name || 'Nước lọc'}
-                        </p>
-                      </div>
-                      <button onClick={() => { setEditingEntry(entry); setEditAmount(entry.amount.toString()); setShowHistory(false); }}
-                        className="px-3 py-1.5 rounded-lg text-[10px] font-bold text-cyan-400 border border-cyan-500/30 bg-cyan-500/10 mr-1">
-                        Sửa
-                      </button>
-                      <button onClick={() => handleDeleteEntry(entry.id)}
-                        className="px-3 py-1.5 rounded-lg text-[10px] font-bold text-red-400 border border-red-500/30 bg-red-500/10">
-                        Xóa
-                      </button>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-
-            <div className="mt-4 pt-4 border-t border-slate-700 flex justify-between items-center">
-              <p className="text-slate-400 text-xs">{waterEntries.length} lần · Tổng cộng</p>
-              <p className="text-cyan-400 font-black">{waterIntake} ml</p>
-            </div>
-          </div>
-        </div>
-      )}
+      <HistoryModal
+        showHistory={showHistory}
+        setShowHistory={setShowHistory}
+        waterEntries={waterEntries}
+        waterIntake={waterIntake}
+        setEditingEntry={setEditingEntry}
+        setEditAmount={setEditAmount}
+        handleDeleteEntry={handleDeleteEntry}
+      />
 
       {/* ===== EDIT MODAL ===== */}
-      {editingEntry && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center px-6" style={{ background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(4px)' }} onClick={() => { setEditingEntry(null); setEditAmount(''); }}>
-          <div className="w-full max-w-sm rounded-3xl p-6" style={{ background: '#1e293b', border: '1px solid rgba(6,182,212,0.2)' }} onClick={e => e.stopPropagation()}>
-            <p className="text-cyan-400 text-[10px] font-bold uppercase tracking-widest mb-1">Chỉnh sửa</p>
-            <h3 className="text-xl font-black text-white mb-5">Cập nhật ghi nhận</h3>
-            <div className="mb-4">
-              <label className="text-xs text-slate-400 font-semibold uppercase tracking-wider mb-2 block">Lượng nước (ml)</label>
-              <input
-                type="number"
-                value={editAmount}
-                onChange={e => setEditAmount(e.target.value)}
-                className="w-full p-4 rounded-xl bg-slate-900 border border-slate-700 text-white text-lg font-bold outline-none focus:border-cyan-500"
-                autoFocus
-              />
-            </div>
-            <div className="flex gap-3">
-              <button onClick={() => { setEditingEntry(null); setEditAmount(''); }}
-                className="flex-1 py-3 rounded-xl text-slate-400 font-bold text-sm border border-slate-700 bg-slate-800">
-                Huỷ
-              </button>
-              <button onClick={handleEditEntry}
-                className="flex-1 py-3 rounded-xl font-bold text-slate-900 text-sm"
-                style={{ background: 'linear-gradient(135deg, #06b6d4, #0ea5e9)' }}>
-                Lưu thay đổi
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <EditEntryModal
+        editingEntry={editingEntry}
+        setEditingEntry={setEditingEntry}
+        editAmount={editAmount}
+        setEditAmount={setEditAmount}
+        handleEditEntry={handleEditEntry}
+      />
 
       {/* ===== SMART HUB MODAL (Gom các tính năng phụ) ===== */}
-      {showSmartHub && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center" style={{ background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(4px)' }} onClick={() => setShowSmartHub(false)}>
-          <div className="w-full max-w-md rounded-t-3xl p-6 pb-10 max-h-[85vh] overflow-y-auto" style={{ background: '#1e293b', border: '1px solid rgba(6,182,212,0.2)' }} onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between mb-5">
-              <div>
-                <h3 className="text-xl font-black text-white">Tiện ích</h3>
-              </div>
-              <button onClick={() => setShowSmartHub(false)} className="text-slate-400 text-xs bg-slate-700 px-3 py-1.5 rounded-lg font-bold">Đóng</button>
-            </div>
-
-            <div className="space-y-4">
-              {/* Widget Nhắc uống nước */}
-              <div className={`${card} p-5 border-l-4 ${reminderSettings.enabled ? 'border-l-cyan-400 shadow-[0_0_18px_rgba(6,182,212,0.1)]' : 'border-l-slate-700'}`}>
-                <div className="flex items-start gap-4">
-                  <div className={`w-12 h-12 rounded-xl border flex items-center justify-center flex-shrink-0 ${reminderSettings.enabled ? 'bg-cyan-500/15 border-cyan-500/30' : 'bg-slate-800 border-slate-700'}`}>
-                    <Bell size={20} className={reminderSettings.enabled ? 'text-cyan-400' : 'text-slate-500'} />
-                  </div>
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <p className="text-white text-base font-bold">Nhắc uống nước</p>
-                      <span className={`text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded-full border ${reminderSettings.enabled ? 'text-cyan-300 border-cyan-500/30 bg-cyan-500/10' : 'text-slate-500 border-slate-700 bg-slate-800'}`}>
-                        {reminderSettings.enabled ? 'Đang bật' : 'Đang tắt'}
-                      </span>
-                      <span className={`text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded-full border ${isReminderPermissionGranted ? 'text-emerald-300 border-emerald-500/30 bg-emerald-500/10' : 'text-amber-300 border-amber-500/30 bg-amber-500/10'}`}>
-                        {isReminderPermissionGranted ? 'Có quyền thông báo' : 'Chưa cấp quyền'}
-                      </span>
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => updateReminderSetting('enabled', !reminderSettings.enabled)}
-                    className={`w-10 h-6 rounded-full p-1 transition-colors ${reminderSettings.enabled ? 'bg-cyan-500' : 'bg-slate-700'}`}
-                  >
-                    <div className={`w-4 h-4 bg-white rounded-full transition-transform ${reminderSettings.enabled ? 'translate-x-4' : ''}`} />
-                  </button>
-                </div>
-
-                <div className="mt-4 grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="text-[10px] text-slate-500 uppercase tracking-widest font-bold mb-1.5 block">Bắt đầu</label>
-                    <input
-                      type="time"
-                      value={reminderSettings.startTime}
-                      onChange={e => updateReminderSetting('startTime', e.target.value)}
-                      className="w-full p-3 rounded-xl bg-slate-900 border border-slate-700 text-white text-sm outline-none focus:border-cyan-500"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-[10px] text-slate-500 uppercase tracking-widest font-bold mb-1.5 block">Kết thúc</label>
-                    <input
-                      type="time"
-                      value={reminderSettings.endTime}
-                      onChange={e => updateReminderSetting('endTime', e.target.value)}
-                      className="w-full p-3 rounded-xl bg-slate-900 border border-slate-700 text-white text-sm outline-none focus:border-cyan-500"
-                    />
-                  </div>
-                </div>
-
-                <div className="mt-3">
-                  <label className="text-[10px] text-slate-500 uppercase tracking-widest font-bold mb-1.5 block">Tần suất nhắc</label>
-                  <select
-                    value={reminderSettings.intervalMinutes}
-                    onChange={e => updateReminderSetting('intervalMinutes', Number(e.target.value))}
-                    className="w-full p-3 rounded-xl bg-slate-900 border border-slate-700 text-white text-sm outline-none focus:border-cyan-500"
-                  >
-                    <option value={45}>Mỗi 45 phút</option>
-                    <option value={60}>Mỗi 60 phút</option>
-                    <option value={90}>Mỗi 90 phút</option>
-                    <option value={120}>Mỗi 2 giờ</option>
-                    <option value={180}>Mỗi 3 giờ</option>
-                  </select>
-                </div>
-
-                <div className="mt-4 p-3 rounded-xl bg-slate-900/80 border border-slate-700">
-                  <p className="text-[10px] text-slate-500 uppercase tracking-widest font-bold mb-1">Preview</p>
-                  <p className="text-sm text-slate-300">{reminderPreview}</p>
-                </div>
-
-                <div className="mt-4 flex gap-3">
-                  <button
-                    onClick={handleApplyReminderSettings}
-                    disabled={isApplyingReminderSettings}
-                    className="flex-1 py-3 rounded-xl font-bold text-slate-900 text-sm disabled:opacity-50 active:scale-95 transition-all"
-                    style={{ background: 'linear-gradient(135deg, #06b6d4, #0ea5e9)' }}
-                  >
-                    {isApplyingReminderSettings ? 'Đang cập nhật...' : reminderSettings.enabled ? 'Lưu & kích hoạt' : 'Lưu & tắt nhắc'}
-                  </button>
-                </div>
-              </div>
-
-              {/* Widget Thời tiết */}
-              {isWeatherSynced && (
-                <div className={`${card} p-4 flex items-center gap-3`}>
-                  <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: 'linear-gradient(135deg, #f97316, #fb923c)' }}>
-                    <CloudSun size={18} className="text-white" />
-                  </div>
-                  <div className="flex-1">
-                    <p className="text-white text-sm font-bold">{weatherData.location} · {weatherData.temp}°C</p>
-                    <p className="text-slate-400 text-xs">{weatherData.status} · +500ml mục tiêu để bù nhiệt</p>
-                  </div>
-                  <button onClick={syncWeather}><RefreshCw size={14} className="text-slate-500" /></button>
-                </div>
-              )}
-
-              {/* Widget Lịch trình */}
-              {isCalendarSynced && (
-                <div className="p-4 rounded-2xl flex items-center gap-3" style={{ background: 'linear-gradient(135deg, #4f46e5, #7c3aed)' }}>
-                  <Bell size={18} className="text-white flex-shrink-0" />
-                  <div>
-                    <p className="text-white text-sm font-bold">{calendarEvents[0]?.title || 'Không có sự kiện'}</p>
-                    <p className="text-indigo-200 text-xs">{calendarEvents[0]?.time || '--:--'} · Nhớ uống nước trước khi bắt đầu nhé!</p>
-                  </div>
-                </div>
-              )}
-
-              {/* Widget Apple Watch */}
-              {isWatchConnected && (
-                <div className={`${card} p-4 flex items-center gap-4`}>
-                  <div className="w-10 h-10 rounded-xl bg-blue-500/20 border border-blue-500/30 flex items-center justify-center">
-                    <Watch size={18} className="text-blue-400" />
-                  </div>
-                  <div className="flex gap-6">
-                    <div>
-                      <p className="text-slate-400 text-[10px] uppercase tracking-wider">Nhịp tim Live</p>
-                      <p className="text-white font-bold text-lg">{watchData.heartRate} <span className="text-slate-500 text-xs font-normal">BPM</span></p>
-                    </div>
-                    <div>
-                      <p className="text-slate-400 text-[10px] uppercase tracking-wider">Bước đi Live</p>
-                      <p className="text-white font-bold text-lg">{watchData.steps} <span className="text-slate-500 text-xs font-normal">steps</span></p>
-                    </div>
-                  </div>
-                  <Bluetooth size={14} className="text-blue-400 ml-auto animate-pulse" />
-                </div>
-              )}
-
-              {/* AUTO-DETECT ACTIVITY CARD */}
-              <AutoActivityCard
-                isWatchConnected={isWatchConnected}
-                isCalendarSynced={isCalendarSynced}
-                watchData={watchData}
-                calendarEvents={calendarEvents}
-                currentActivity={currentActivity}
-                setCurrentActivity={setCurrentActivity}
-              />
-
-              {/* Eye rest */}
-              <button onClick={() => toast.success("Đã bật chế độ bảo vệ mắt. Hệ thống sẽ nhắc bạn nhìn xa 6 mét trong 20 giây mỗi 20 phút.")} className={`${card} w-full p-5 flex items-center gap-4 active:scale-95 transition-all text-left border-l-4 border-l-violet-500`}>
-                <div className="w-12 h-12 rounded-xl bg-violet-500/20 border border-violet-500/30 flex items-center justify-center flex-shrink-0">
-                  <Eye size={20} className="text-violet-400" />
-                </div>
-                <div className="flex-1">
-                  <p className="text-white text-base font-bold">Chế độ 20-20-20</p>
-                </div>
-                <ShieldCheck size={20} className="text-slate-600" />
-              </button>
-
-              {/* Fasting Mode (Premium) */}
-              <div className={`${card} w-full p-5 flex flex-col gap-4 border-l-4 ${isFastingMode ? 'border-l-amber-500 bg-amber-500/10' : 'border-l-amber-500/30'}`}>
-                <div className="flex items-center gap-4 cursor-pointer" onClick={toggleFastingMode}>
-                  <div className={`w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 ${isFastingMode ? 'bg-amber-500/20 border border-amber-500/50' : 'bg-slate-800 border border-slate-700'}`}>
-                    <Coffee size={20} className={isFastingMode ? "text-amber-400" : "text-slate-500"} />
-                  </div>
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2">
-                      <p className={`text-base font-bold ${isFastingMode ? 'text-amber-400' : 'text-white'}`}>Fasting Tracker</p>
-                      {!isPremium && <Lock size={12} className="text-amber-500" />}
-                    </div>
-                    <p className="text-slate-400 text-[10px] mt-1">Chế độ 16:8</p>
-                  </div>
-                  <div className={`w-10 h-6 rounded-full p-1 transition-colors ${isFastingMode ? 'bg-amber-500' : 'bg-slate-700'}`}>
-                    <div className={`w-4 h-4 bg-white rounded-full transition-transform ${isFastingMode ? 'translate-x-4' : ''}`} />
-                  </div>
-                </div>
-                {isFastingMode && (
-                  <div className="pt-3 border-t border-amber-500/20 flex items-center justify-between">
-                    <div>
-                      <p className="text-amber-200/70 text-[10px] uppercase tracking-widest font-bold">Thời gian còn lại</p>
-                      <p className="text-amber-400 text-xl font-black font-mono mt-1">
-                        {String(fastingHours).padStart(2, '0')}:{String(fastingMinutes).padStart(2, '0')}:{String(fastingSeconds).padStart(2, '0')}
-                      </p>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-amber-200/70 text-[10px] uppercase tracking-widest font-bold">Trạng thái</p>
-                      <p className="text-amber-300 text-sm font-bold mt-1">
-                        {fastingRemaining === 0 ? "Hoàn thành!" : "Đang đốt mỡ"}
-                      </p>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      <SmartHubModal
+        showSmartHub={showSmartHub}
+        setShowSmartHub={setShowSmartHub}
+        reminderSettings={reminderSettings}
+        isReminderPermissionGranted={isReminderPermissionGranted}
+        updateReminderSetting={updateReminderSetting}
+        reminderPreview={reminderPreview}
+        handleApplyReminderSettings={handleApplyReminderSettings}
+        isApplyingReminderSettings={isApplyingReminderSettings}
+        isWeatherSynced={isWeatherSynced}
+        weatherData={weatherData}
+        syncWeather={syncWeather}
+        isCalendarSynced={isCalendarSynced}
+        calendarEvents={calendarEvents}
+        isWatchConnected={isWatchConnected}
+        setIsWatchConnected={setIsWatchConnected}
+        watchData={watchData}
+        currentActivity={currentActivity}
+        setCurrentActivity={setCurrentActivity}
+        isFastingMode={isFastingMode}
+        toggleFastingMode={toggleFastingMode}
+        fastingHours={fastingHours}
+        fastingMinutes={fastingMinutes}
+        fastingSeconds={fastingSeconds}
+        fastingRemaining={fastingRemaining}
+        isPremium={isPremium}
+        setShowPremiumModal={setShowPremiumModal}
+      />
 
       {/* ===== CUSTOM DRINK MODAL ===== */}
-      {showCustomDrink && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center px-6" style={{ background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(4px)' }} onClick={() => setShowCustomDrink(false)}>
-          <div className="w-full max-w-sm rounded-3xl p-6" style={{ background: '#1e293b', border: '1px solid rgba(6,182,212,0.2)' }} onClick={e => e.stopPropagation()}>
-            <h3 className="text-xl font-black text-white mb-5">Thêm đồ uống khác</h3>
-
-            <div className="space-y-4 mb-6">
-              <div>
-                <label className="text-xs text-slate-400 font-semibold uppercase tracking-wider mb-2 block">Tên đồ uống</label>
-                <input type="text" value={customDrinkForm.name} onChange={e => setCustomDrinkForm({...customDrinkForm, name: e.target.value})} className="w-full p-3.5 rounded-xl bg-slate-900 border border-slate-700 text-white text-sm outline-none focus:border-cyan-500" placeholder="VD: Trà đào, Nước dừa..." />
-              </div>
-              <div>
-                <label className="text-xs text-slate-400 font-semibold uppercase tracking-wider mb-2 block">Dung tích (ml)</label>
-                <input type="number" value={customDrinkForm.amount} onChange={e => setCustomDrinkForm({...customDrinkForm, amount: e.target.value})} className="w-full p-3.5 rounded-xl bg-slate-900 border border-slate-700 text-white text-sm outline-none focus:border-cyan-500" />
-              </div>
-              <div>
-                <label className="text-xs text-slate-400 font-semibold uppercase tracking-wider mb-2 block">Nhóm chất lỏng (BHI)</label>
-                <select value={customDrinkForm.factor} onChange={e => setCustomDrinkForm({...customDrinkForm, factor: Number(e.target.value)})} className="w-full p-3.5 rounded-xl bg-slate-900 border border-slate-700 text-white text-sm outline-none focus:border-cyan-500">
-                  <option value={1.0}>Nước lọc / Nước trái cây (100%)</option>
-                  <option value={1.1}>Nước bù khoáng / Sữa (110%)</option>
-                  <option value={0.8}>Cà phê / Trà đậm (80%)</option>
-                  <option value={-0.5}>Rượu / Bia / Cồn (-50%)</option>
-                </select>
-              </div>
-            </div>
-
-            <div className="flex gap-3">
-              <button onClick={() => setShowCustomDrink(false)} className="flex-1 py-3 rounded-xl text-slate-400 font-bold text-sm border border-slate-700 bg-slate-800">Huỷ</button>
-              <button onClick={() => {
-                const amt = Number(customDrinkForm.amount) || 0;
-                if (amt <= 0) return toast.error("Dung tích không hợp lệ!");
-                handleAddWater(amt, customDrinkForm.factor, customDrinkForm.name || 'Đồ uống tùy chỉnh');
-                setShowCustomDrink(false);
-              }} className="flex-1 py-3 rounded-xl font-bold text-slate-900 text-sm" style={{ background: 'linear-gradient(135deg, #06b6d4, #0ea5e9)' }}>Thêm ngay</button>
-            </div>
-          </div>
-        </div>
-      )}
+      <CustomDrinkModal
+        showCustomDrink={showCustomDrink}
+        setShowCustomDrink={setShowCustomDrink}
+        customDrinkForm={customDrinkForm}
+        setCustomDrinkForm={setCustomDrinkForm}
+        handleAddWater={handleAddWater}
+      />
 
       {/* ===== PRESET MANAGER MODAL ===== */}
-      {showPresetManager && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center px-6" style={{ background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(4px)' }} onClick={() => setShowPresetManager(false)}>
-          <div className="w-full max-w-sm rounded-3xl p-6" style={{ background: '#1e293b', border: '1px solid rgba(6,182,212,0.2)' }} onClick={e => e.stopPropagation()}>
-            <div className="flex justify-between items-center mb-5">
-              <div>
-                <h3 className="text-xl font-black text-white">Menu đồ uống</h3>
-              </div>
-              <div className="flex items-center gap-3">
-                <button onClick={() => setEditingPresets([...editingPresets, { id: Date.now().toString(), name: 'Đồ uống mới', amount: 200, factor: 1.0, icon: 'Droplet', color: 'cyan' }])} className="text-cyan-400 bg-cyan-500/10 p-1.5 rounded-lg border border-cyan-500/20 active:scale-95 transition-all"><Plus size={18} /></button>
-                <button onClick={() => setShowPresetManager(false)} className="text-slate-400 hover:text-white"><X size={22} /></button>
-              </div>
-            </div>
-
-            <div className="space-y-3 mb-6 max-h-[55vh] overflow-y-auto pr-1">
-              {editingPresets.map((p, idx) => (
-                <div key={p.id} className="p-3.5 rounded-xl bg-slate-900 border border-slate-700 space-y-3">
-                  <div className="flex items-center gap-3">
-                    {renderIcon(p.icon, { size: 18, className: presetStyles[p.color as keyof typeof presetStyles]?.text || 'text-cyan-400' })}
-                    <input type="text" value={p.name} onChange={e => handleUpdatePreset(idx, 'name', e.target.value)} className="flex-1 bg-transparent border-b border-slate-700 text-white text-sm font-bold outline-none focus:border-cyan-500 pb-1" />
-                  </div>
-                  <div className="flex gap-3">
-                    <div className="flex-1">
-                      <label className="text-[10px] text-slate-500 uppercase mb-1 block font-semibold">Dung tích (ml)</label>
-                      <input type="number" value={p.amount} onChange={e => handleUpdatePreset(idx, 'amount', Number(e.target.value))} className="w-full bg-slate-800 p-2.5 rounded-lg text-white text-xs border border-slate-700 outline-none focus:border-cyan-500" />
-                    </div>
-                    <div className="flex-1">
-                      <label className="text-[10px] text-slate-500 uppercase mb-1 block font-semibold">Hệ số BHI</label>
-                      <select value={p.factor} onChange={e => handleUpdatePreset(idx, 'factor', Number(e.target.value))} className="w-full bg-slate-800 p-2.5 rounded-lg text-white text-xs border border-slate-700 outline-none focus:border-cyan-500">
-                        <option value={1.0}>Nước (100%)</option>
-                        <option value={1.1}>Bù khoáng (110%)</option>
-                        <option value={0.8}>Cà phê (80%)</option>
-                        <option value={-0.5}>Cồn (-50%)</option>
-                      </select>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            <div className="flex gap-3">
-              <button onClick={() => setShowPresetManager(false)} className="flex-1 py-3 rounded-xl text-slate-400 font-bold text-sm border border-slate-700 bg-slate-800 active:scale-95 transition-all">Huỷ</button>
-              <button onClick={savePresets} className="flex-1 py-3 rounded-xl font-bold text-slate-900 text-sm active:scale-95 transition-all" style={{ background: 'linear-gradient(135deg, #06b6d4, #0ea5e9)' }}>Lưu cấu hình</button>
-            </div>
-          </div>
-        </div>
-      )}
+      <PresetManagerModal
+        showPresetManager={showPresetManager}
+        setShowPresetManager={setShowPresetManager}
+        editingPresets={editingPresets}
+        setEditingPresets={setEditingPresets}
+        handleUpdatePreset={handleUpdatePreset}
+        savePresets={savePresets}
+      />
 
       {/* ===== ONBOARDING MODAL (HƯỚNG DẪN TÂN THỦ) ===== */}
-      {showOnboarding && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center px-6 bg-slate-900/90 backdrop-blur-md">
-          <div className="w-full max-w-sm rounded-[2rem] p-8 text-center relative overflow-hidden shadow-[0_0_50px_rgba(6,182,212,0.15)]" style={{ background: 'linear-gradient(160deg, #1e293b 0%, #0f172a 100%)', border: '1px solid rgba(6,182,212,0.3)' }}>
-            <div className="absolute -top-10 -right-10 w-32 h-32 bg-cyan-500/20 rounded-full blur-2xl"></div>
-            
-            {onboardingStep === 1 && (
-              <div className="animate-in fade-in zoom-in duration-500">
-                <div className="w-20 h-20 mx-auto bg-cyan-500/20 border-2 border-cyan-500/50 rounded-3xl flex items-center justify-center mb-6 shadow-[0_0_20px_rgba(6,182,212,0.4)]">
-                  <span className="text-4xl font-black text-white">(^o^)</span>
-                </div>
-                <h3 className="text-2xl font-black text-white mb-3">Holo-Pet</h3>
-                <p className="text-slate-400 text-sm leading-relaxed mb-8">Nhắc bạn uống nước mỗi ngày.</p>
-              </div>
-            )}
-            {onboardingStep === 2 && (
-              <div className="animate-in fade-in slide-in-from-right duration-500">
-                <div className="w-20 h-20 mx-auto bg-orange-500/20 border-2 border-orange-500/50 rounded-3xl flex items-center justify-center mb-6"><Coffee size={32} className="text-orange-400" /></div>
-                <h3 className="text-2xl font-black text-white mb-3">Đồ uống</h3>
-                <p className="text-slate-400 text-sm leading-relaxed mb-8">Mỗi loại đồ uống có hệ số khác nhau.</p>
-              </div>
-            )}
-            {onboardingStep === 3 && (
-              <div className="animate-in fade-in slide-in-from-right duration-500">
-                <div className="w-20 h-20 mx-auto bg-emerald-500/20 border-2 border-emerald-500/50 rounded-3xl flex items-center justify-center mb-6"><Sparkles size={32} className="text-emerald-400" /></div>
-                <h3 className="text-2xl font-black text-white mb-3">Tiện ích</h3>
-                <p className="text-slate-400 text-sm leading-relaxed mb-8">Mở góc phải màn hình để xem kết nối và lời nhắc.</p>
-              </div>
-            )}
-
-            <button onClick={() => { if (onboardingStep < 3) setOnboardingStep(onboardingStep + 1); else { localStorage.setItem(`digiwell_onboarded_${profile?.id}`, 'true'); setShowOnboarding(false); toast.success("Đã hoàn tất thiết lập!"); } }} className="w-full py-4 rounded-xl font-bold text-slate-900 text-sm active:scale-95 transition-all shadow-lg" style={{ background: 'linear-gradient(135deg, #06b6d4, #0ea5e9)' }}>
-              {onboardingStep < 3 ? 'Tiếp tục' : 'Bắt đầu'}
-            </button>
-            <div className="flex justify-center gap-2 mt-6">{[1, 2, 3].map(i => (<div key={i} className={`w-2 h-2 rounded-full transition-all duration-300 ${onboardingStep === i ? 'bg-cyan-400 w-6' : 'bg-slate-700'}`} />))}</div>
-          </div>
-        </div>
-      )}
+      <OnboardingModal
+        showOnboarding={showOnboarding}
+        setShowOnboarding={setShowOnboarding}
+        onboardingStep={onboardingStep}
+        setOnboardingStep={setOnboardingStep}
+        profileId={profile?.id}
+        phoenixNode={<MechanicalPhoenix progress={100} />}
+      />
 
       {/* ===== SOCIAL PROFILE PAGE ===== */}
       {showSocialProfile && (
@@ -2728,229 +1957,46 @@ ${historyText}`;
       )}
 
       {/* ===== ADD FRIEND MODAL ===== */}
-      {showAddFriend && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center px-6" style={{ background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(4px)' }} onClick={() => { setShowAddFriend(false); setSearchQuery(''); setSearchResults([]); }}>
-          <div className="w-full max-w-sm rounded-3xl p-6" style={{ background: '#1e293b', border: '1px solid rgba(16,185,129,0.3)' }} onClick={e => e.stopPropagation()}>
-            <div className="flex justify-between items-center mb-5">
-              <div>
-                <h3 className="text-xl font-black text-white">Thêm bạn bè</h3>
-              </div>
-              <button onClick={() => { setShowAddFriend(false); setSearchQuery(''); setSearchResults([]); }} className="text-slate-400 hover:text-white"><X size={22} /></button>
-            </div>
-            
-            <div className="relative mb-6">
-              <input type="text" value={searchQuery} onChange={e => handleSearchUser(e.target.value)} placeholder="Nhập nickname cần tìm..." className="w-full p-3.5 pl-10 rounded-xl bg-slate-900 border border-slate-700 text-white text-sm outline-none focus:border-emerald-500" />
-              <Search size={16} className="absolute left-3.5 top-4 text-slate-500" />
-            </div>
-
-            {isSearching ? (
-              <p className="text-center text-slate-400 text-sm py-4">Đang tìm kiếm...</p>
-            ) : searchResults.length > 0 ? (
-              <div className="space-y-3 mb-6">
-                {searchResults.map(user => (
-                  <div key={user.id} className="flex items-center justify-between p-3 rounded-xl bg-slate-800 border border-slate-700">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full flex items-center justify-center font-bold text-white shadow-inner" style={{ background: 'linear-gradient(135deg, #10b981, #059669)' }}>
-                        {(user.nickname || 'U').charAt(0).toUpperCase()}
-                      </div>
-                      <div>
-                        <p className="text-white text-sm font-bold">{user.nickname || 'Người dùng'}</p>
-                        <p className="text-slate-400 text-[10px]">Người dùng DigiWell</p>
-                      </div>
-                    </div>
-                    <button onClick={() => handleAddFriend(user.id, user.nickname)} className="px-3 py-1.5 rounded-lg bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-xs font-bold active:scale-95 transition-all">
-                      Kết bạn
-                    </button>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="text-center py-6">
-                <Users size={32} className="text-slate-600 mx-auto mb-3" />
-                <p className="text-slate-400 text-sm">{searchQuery.length > 2 ? 'Không tìm thấy người dùng này' : 'Tìm kiếm bằng nickname để cùng đua top'}</p>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
+      <AddFriendModal
+        showAddFriend={showAddFriend}
+        setShowAddFriend={setShowAddFriend}
+        searchQuery={searchQuery}
+        setSearchQuery={setSearchQuery}
+        searchResults={searchResults}
+        setSearchResults={setSearchResults}
+        isSearching={isSearching}
+        handleSearchUser={handleSearchUser}
+        handleAddFriend={handleAddFriend}
+      />
 
       {/* ===== PROFILE SETTINGS PAGE ===== */}
-      {showProfileSettings && (
-        <div className="fixed inset-0 z-[80] flex justify-center" style={{ background: '#0f172a' }}>
-          <div className="w-full max-w-md min-h-screen px-5 pt-6 pb-10 overflow-y-auto scrollbar-hide">
-            <div className="flex items-center justify-between gap-3 mb-5">
-              <div>
-                <p className="text-slate-500 text-[10px] font-bold uppercase tracking-widest">Profile</p>
-                <h3 className="text-2xl font-black text-white mt-1">Cài đặt</h3>
-              </div>
-              <button onClick={() => setShowProfileSettings(false)} className="px-3 py-2 rounded-xl bg-slate-800 border border-slate-700 text-slate-300 text-xs font-bold hover:text-white transition-all active:scale-95">
-                Đóng
-              </button>
-            </div>
-
-            <div className="rounded-[2rem] border border-slate-700/70 bg-slate-900/65 p-5 shadow-[0_18px_40px_rgba(0,0,0,0.35)]">
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <p className="text-slate-500 text-[10px] uppercase tracking-widest font-bold">Tài khoản</p>
-                  <h4 className="text-white text-xl font-black mt-2">{profile?.nickname || 'Khách'}</h4>
-                  <p className="text-slate-400 text-sm mt-1">{profile?.goal?.split('&')[0]?.trim() || 'Sức khỏe tổng quát'}</p>
-                </div>
-                <button onClick={() => { setShowProfileSettings(false); openEditProfile(); }} className="px-4 py-2 rounded-xl bg-cyan-500/12 border border-cyan-500/25 text-cyan-300 text-xs font-bold flex items-center gap-2 active:scale-95 transition-all">
-                  <Edit2 size={14} /> Chỉnh sửa
-                </button>
-              </div>
-            </div>
-
-            <div className="space-y-4 mt-4">
-              <div className={`${card} p-5`}>
-                <h4 className="text-white text-lg font-black mb-4">Thông tin cá nhân</h4>
-                <div className="grid grid-cols-2 gap-3">
-                  {[
-                    { label: 'Giới tính', value: profile?.gender || '--' },
-                    { label: 'Tuổi', value: profile?.age ? `${profile.age}` : '--' },
-                    { label: 'Chiều cao', value: profile?.height ? `${profile.height} cm` : '--' },
-                    { label: 'Cân nặng', value: profile?.weight ? `${profile.weight} kg` : '--' },
-                  ].map(item => (
-                    <div key={item.label} className="rounded-2xl border border-slate-700/60 bg-slate-900/50 px-4 py-3">
-                      <p className="text-slate-500 text-[10px] uppercase tracking-widest font-bold">{item.label}</p>
-                      <p className="text-white text-sm font-bold mt-1">{item.value}</p>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <div className={`${card} p-5`}>
-                <h4 className="text-white text-lg font-black mb-4">Thiết lập nước</h4>
-                <div className="grid grid-cols-2 gap-3">
-                  {[
-                    { label: 'Mục tiêu nước', value: `${waterGoal} ml`, tone: 'text-cyan-300' },
-                    { label: 'Mức vận động', value: activityLabel, tone: 'text-emerald-300' },
-                    { label: 'Khí hậu', value: profile?.climate || '--', tone: 'text-slate-100' },
-                    { label: 'Lộ trình', value: profile?.goal?.split('&')[0]?.trim() || '--', tone: 'text-amber-300' },
-                  ].map(item => (
-                    <div key={item.label} className="rounded-2xl border border-slate-700/60 bg-slate-900/50 px-4 py-3">
-                      <p className="text-slate-500 text-[10px] uppercase tracking-widest font-bold">{item.label}</p>
-                      <p className={`text-sm font-bold mt-1 ${item.tone}`}>{item.value}</p>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <div className={`${card} p-5`}>
-                <div className="flex items-center justify-between mb-4">
-                  <h4 className="text-white text-lg font-black">Kết nối</h4>
-                  <div className="px-3 py-2 rounded-xl bg-slate-900/70 border border-slate-700 text-slate-200 text-[11px] font-bold">
-                    {connectedSystemsCount}/3 đang bật
-                  </div>
-                </div>
-
-                <div className="space-y-3">
-                  {connectedSystems.map(({ icon: Icon, label, sub, active, action, activeColor, activeBg, activeBorder }) => (
-                    <div key={label} className="rounded-2xl border border-slate-700/60 bg-slate-900/55 p-4 flex items-center justify-between gap-3">
-                      <div className="flex items-center gap-4 min-w-0">
-                        <div
-                          className="w-12 h-12 rounded-2xl flex items-center justify-center flex-shrink-0"
-                          style={{ background: active ? activeBg : '#1e293b', border: `1px solid ${active ? activeBorder : '#334155'}` }}
-                        >
-                          <Icon size={20} style={{ color: active ? activeColor : '#64748b' }} />
-                        </div>
-                        <div className="min-w-0">
-                          <p className="text-white text-sm font-bold truncate">{label}</p>
-                          <p className="text-slate-500 text-[10px] uppercase tracking-wider mt-1">{sub}</p>
-                        </div>
-                      </div>
-                      <button
-                        onClick={action}
-                        className="px-4 py-2 rounded-xl text-[10px] font-bold uppercase tracking-wider transition-all flex-shrink-0"
-                        style={active ? { background: activeBg, color: activeColor, border: `1px solid ${activeBorder}` } : { background: '#1e293b', color: '#64748b', border: '1px solid #334155' }}
-                      >
-                        {active ? 'Đã bật' : 'Kết nối'}
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      <ProfileSettingsModal
+        showProfileSettings={showProfileSettings}
+        setShowProfileSettings={setShowProfileSettings}
+        profile={profile}
+        waterGoal={waterGoal}
+        activityLabel={activityLabel}
+        connectedSystemsCount={connectedSystemsCount}
+        connectedSystems={connectedSystems}
+        openEditProfile={openEditProfile}
+      />
 
       {/* ===== EDIT PROFILE MODAL ===== */}
-      {showEditProfile && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center px-6" style={{ background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(4px)' }} onClick={() => setShowEditProfile(false)}>
-          <div className="w-full max-w-sm rounded-3xl p-6 max-h-[85vh] overflow-y-auto scrollbar-hide" style={{ background: '#1e293b', border: '1px solid rgba(6,182,212,0.2)' }} onClick={e => e.stopPropagation()}>
-            <div className="flex justify-between items-center mb-5">
-              <div>
-                <h3 className="text-xl font-black text-white">Chỉnh sửa thông tin</h3>
-              </div>
-              <button onClick={() => setShowEditProfile(false)} className="text-slate-400 hover:text-white"><X size={22} /></button>
-            </div>
-
-            <form onSubmit={handleSaveProfile} className="space-y-4">
-              <div>
-                <label className="text-[10px] text-slate-400 font-semibold uppercase mb-1 block">Nickname hiển thị</label>
-                <input type="text" value={editProfileData.nickname} onChange={e => setEditProfileData({...editProfileData, nickname: e.target.value})} className="w-full p-3 rounded-xl bg-slate-900 border border-slate-700 text-white text-sm outline-none focus:border-cyan-500" required />
-              </div>
-              
-              <div className="grid grid-cols-2 gap-3">
-                <div><label className="text-[10px] text-slate-400 font-semibold uppercase mb-1 block">Giới tính</label><select value={editProfileData.gender} onChange={e => setEditProfileData({...editProfileData, gender: e.target.value})} className="w-full p-3 rounded-xl bg-slate-900 border border-slate-700 text-white text-sm outline-none focus:border-cyan-500"><option>Nam</option><option>Nữ</option><option>Khác</option></select></div>
-                <div><label className="text-[10px] text-slate-400 font-semibold uppercase mb-1 block">Tuổi</label><input type="number" value={editProfileData.age} onChange={e => setEditProfileData({...editProfileData, age: +e.target.value})} className="w-full p-3 rounded-xl bg-slate-900 border border-slate-700 text-white text-sm outline-none focus:border-cyan-500" required /></div>
-                <div><label className="text-[10px] text-slate-400 font-semibold uppercase mb-1 block">Chiều cao (cm)</label><input type="number" value={editProfileData.height} onChange={e => setEditProfileData({...editProfileData, height: +e.target.value})} className="w-full p-3 rounded-xl bg-slate-900 border border-slate-700 text-white text-sm outline-none focus:border-cyan-500" required /></div>
-                <div><label className="text-[10px] text-slate-400 font-semibold uppercase mb-1 block">Cân nặng (kg)</label><input type="number" value={editProfileData.weight} onChange={e => setEditProfileData({...editProfileData, weight: +e.target.value})} className="w-full p-3 rounded-xl bg-slate-900 border border-slate-700 text-white text-sm outline-none focus:border-cyan-500" required /></div>
-              </div>
-
-              <div>
-                <label className="text-[10px] text-slate-400 font-semibold uppercase mb-1 block">Mục tiêu chính</label>
-                <select value={editProfileData.goal} onChange={e => setEditProfileData({...editProfileData, goal: e.target.value})} className="w-full p-3 rounded-xl bg-slate-900 border border-slate-700 text-white text-sm outline-none focus:border-cyan-500">
-                  <option value="Giảm mỡ & Tăng cơ">Giảm mỡ & Tăng cơ</option><option value="Sức khỏe tổng quát">Sức khỏe tổng quát</option><option value="Bảo vệ da">Bảo vệ da</option>
-                </select>
-              </div>
-
-              <button type="submit" disabled={isUpdatingProfile} className="w-full py-4 mt-2 rounded-xl font-bold text-slate-900 text-sm disabled:opacity-50 active:scale-95 transition-all" style={{ background: 'linear-gradient(135deg, #06b6d4, #0ea5e9)' }}>
-                {isUpdatingProfile ? "Đang lưu..." : "Lưu thay đổi"}
-              </button>
-            </form>
-          </div>
-        </div>
-      )}
+      <EditProfileModal
+        showEditProfile={showEditProfile}
+        setShowEditProfile={setShowEditProfile}
+        editProfileData={editProfileData}
+        setEditProfileData={setEditProfileData}
+        handleSaveProfile={handleSaveProfile}
+        isUpdatingProfile={isUpdatingProfile}
+      />
 
       {/* ===== PREMIUM PAYWALL MODAL ===== */}
-      {showPremiumModal && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center px-6 bg-slate-900/90 backdrop-blur-md" onClick={() => setShowPremiumModal(false)}>
-          <div className="w-full max-w-sm rounded-[2rem] p-8 relative overflow-hidden shadow-[0_0_50px_rgba(245,158,11,0.15)]" style={{ background: 'linear-gradient(160deg, #1e293b 0%, #0f172a 100%)', border: '1px solid rgba(245,158,11,0.3)' }} onClick={e => e.stopPropagation()}>
-            <div className="absolute -top-10 -right-10 w-32 h-32 bg-amber-500/20 rounded-full blur-2xl pointer-events-none"></div>
-            
-            <div className="w-16 h-16 bg-amber-500/20 border border-amber-500/50 rounded-2xl flex items-center justify-center mb-6 shadow-[0_0_20px_rgba(245,158,11,0.4)]">
-              <Sparkles size={28} className="text-amber-400" />
-            </div>
-            
-            <h3 className="text-2xl font-black text-white mb-2">DigiWell <span className="text-transparent bg-clip-text bg-gradient-to-r from-amber-400 to-amber-600">PRO</span></h3>
-            <p className="text-slate-400 text-sm leading-relaxed mb-6">Nâng cấp để mở khóa toàn bộ tính năng thông minh.</p>
-            
-            <ul className="space-y-3 mb-8">
-              {[
-                'Xuất báo cáo PDF chuẩn Y khoa',
-                'Chế độ Nhịn ăn gián đoạn (Fasting)',
-                'AI Analytics chuyên sâu phân tích thói quen',
-              ].map((ft, i) => (
-                <li key={i} className="flex items-center gap-3 text-sm text-slate-300">
-                  <div className="w-5 h-5 rounded-full bg-amber-500/20 flex items-center justify-center flex-shrink-0">
-                    <Target size={12} className="text-amber-400" />
-                  </div>
-                  {ft}
-                </li>
-              ))}
-            </ul>
-
-            <button onClick={() => { setIsPremium(true); setShowPremiumModal(false); toast.success("Chào mừng bạn đến với DigiWell PRO! 🌟"); }} className="w-full py-4 rounded-xl font-bold text-slate-900 text-sm active:scale-95 transition-all shadow-lg" style={{ background: 'linear-gradient(135deg, #fbbf24, #d97706)' }}>
-              Nâng cấp ngay - 49.000đ/tháng
-            </button>
-            <button onClick={() => setShowPremiumModal(false)} className="w-full mt-3 py-3 rounded-xl text-slate-400 text-xs font-bold hover:bg-slate-800 transition-colors">
-              Để sau
-            </button>
-          </div>
-        </div>
-      )}
+      <PremiumModal
+        showPremiumModal={showPremiumModal}
+        setShowPremiumModal={setShowPremiumModal}
+        setIsPremium={setIsPremium}
+      />
 
       <AiChatModal
         isOpen={showAiChat}
