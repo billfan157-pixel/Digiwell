@@ -48,9 +48,9 @@
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<true/>
 	<key>NSHealthShareUsageDescription</key>
-	<string>Chúng tôi cần đọc dữ liệu sức khỏe để theo dõi hoạt động của bạn.</string>
+	<string>DigiWell cần truy cập dữ liệu sức khỏe để phân tích nhịp tim và bước chân, giúp cá nhân hóa lượng nước mục tiêu của bạn.</string>
 	<key>NSHealthUpdateUsageDescription</key>
-	<string>Chúng tôi cần ghi dữ liệu sức khỏe để cập nhật tiến trình của bạn.</string>
+	<string>DigiWell cần quyền này để đồng bộ lượng nước bạn đã uống vào ứng dụng Sức Khỏe của Apple.</string>
 	<key>CFBundleURLTypes</key>
 	<array>
 		<dict>

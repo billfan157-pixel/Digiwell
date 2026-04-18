@@ -6,8 +6,7 @@ interface WelcomeScreenProps {
 
 export default function WelcomeScreen({ onNavigate }: WelcomeScreenProps) {
   return (
-    <div className="flex flex-col min-h-screen max-w-md mx-auto relative overflow-hidden font-sans"
-      style={{ background: 'linear-gradient(160deg, #0f172a 0%, #1e293b 50%, #0f172a 100%)' }}>
+    <div className="flex flex-col min-h-screen max-w-md mx-auto relative overflow-hidden font-sans bg-slate-950">
       <div className="absolute top-20 left-10 w-72 h-72 rounded-full opacity-20 blur-3xl pointer-events-none" style={{ background: 'radial-gradient(circle, #06b6d4, transparent)' }} />
       <div className="absolute bottom-32 right-0 w-64 h-64 rounded-full opacity-15 blur-3xl pointer-events-none" style={{ background: 'radial-gradient(circle, #8b5cf6, transparent)' }} />
 
@@ -26,10 +25,10 @@ export default function WelcomeScreen({ onNavigate }: WelcomeScreenProps) {
         </p>
 
         <div className="w-full space-y-3">
-          <button onClick={() => onNavigate('login')} className="w-full py-4 rounded-2xl font-bold text-sm tracking-wide text-slate-900 transition-all active:scale-95" style={{ background: 'linear-gradient(135deg, #06b6d4, #0ea5e9)' }}>
+        <button onClick={() => onNavigate('login')} className="w-full py-4 rounded-3xl font-semibold text-sm tracking-wide text-slate-950 bg-cyan-500 shadow-[0_0_15px_rgba(6,182,212,0.4)] hover:shadow-[0_0_25px_rgba(6,182,212,0.6)] active:scale-95 transition-all duration-200 ease-out">
             Đăng nhập
           </button>
-          <button onClick={() => onNavigate('register')} className="w-full py-4 rounded-2xl font-bold text-sm tracking-wide text-cyan-300 border border-slate-600 bg-slate-800/50 transition-all active:scale-95">
+        <button onClick={() => onNavigate('register')} className="w-full py-4 rounded-3xl font-semibold text-sm tracking-wide text-cyan-300 border border-white/5 bg-slate-900/60 backdrop-blur-xl hover:bg-slate-800/60 active:scale-95 transition-all duration-200 ease-out">
             Tạo tài khoản mới
           </button>
         </div>

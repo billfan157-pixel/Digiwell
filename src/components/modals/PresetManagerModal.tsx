@@ -1,6 +1,6 @@
 import React from 'react';
 import { Plus, X } from 'lucide-react';
-import { DrinkPreset, renderIcon, presetStyles } from '../../tabs/HomeTab';
+import { type DrinkPreset, renderIcon, presetStyles } from '../../tabs/HomeTab';
 
 interface PresetManagerModalProps {
   showPresetManager: boolean;
@@ -31,7 +31,7 @@ export default function PresetManagerModal({
 
         <div className="space-y-3 mb-6 max-h-[55vh] overflow-y-auto pr-1">
           {editingPresets.map((p, idx) => (
-            <div key={p.id} className="p-3.5 rounded-xl bg-slate-900 border border-slate-700 space-y-3">
+            <div key={p.id || `preset-item-${idx}`} className="p-3.5 rounded-xl bg-slate-900 border border-slate-700 space-y-3">
               <div className="flex items-center gap-3">
                 {renderIcon(p.icon, { size: 18, className: presetStyles[p.color as keyof typeof presetStyles]?.text || 'text-cyan-400' })}
                 <input type="text" value={p.name} onChange={e => handleUpdatePreset(idx, 'name', e.target.value)} className="flex-1 bg-transparent border-b border-slate-700 text-white text-sm font-bold outline-none focus:border-cyan-500 pb-1" />

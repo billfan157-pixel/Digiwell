@@ -1,8 +1,9 @@
 import { Trophy, UserPlus, Zap, Crown, Medal } from 'lucide-react';
+import ClubsView from '../components/ClubsView';
 
 interface LeagueTabProps {
-  leagueMode: 'public' | 'friends';
-  setLeagueMode: (mode: 'public' | 'friends') => void;
+  leagueMode: 'public' | 'friends' | 'clubs';
+  setLeagueMode: (mode: 'public' | 'friends' | 'clubs') => void;
   setShowAddFriend: (show: boolean) => void;
   getLeagueData: () => any[];
   getRankInfo: (wp: number) => { name: string; color: string; bg: string; border: string; };
@@ -12,22 +13,29 @@ export default function LeagueTab({
   leagueMode, setLeagueMode, setShowAddFriend, getLeagueData, getRankInfo
 }: LeagueTabProps) {
   const sortedData = getLeagueData().sort((a, b) => b.wp - a.wp);
+  const currentUser = sortedData.find(item => item.isMe);
 
   return (
     <div className="animate-in slide-in-from-right duration-300 space-y-5 pb-8">
-      <div className="flex justify-between items-end">
+      <div className="flex justify-between items-start pt-6 pb-4 px-6">
         <div>
-          <p className="text-slate-500 text-[10px] font-bold uppercase tracking-widest">Bảng vinh danh</p>
-          <h2 className="text-3xl font-black text-white flex items-center gap-3 mt-1">
+          {/* OVERLINE (Subtitle) */}
+          <p className="text-xs font-semibold tracking-wider text-slate-400 uppercase mb-1">
+            BẢNG VINH DANH
+          </p>
+          {/* MAIN TITLE */}
+          <h1 className="text-3xl font-bold tracking-tight text-slate-50 flex items-center gap-3">
             Xếp hạng <Trophy size={28} className="text-yellow-400 drop-shadow-[0_0_10px_rgba(250,204,21,0.5)]" />
-          </h2>
+          </h1>
         </div>
+        <div className="flex items-center gap-3"></div>
       </div>
 
       {/* Toggle Bảng Xếp Hạng */}
       <div className="flex p-1 bg-slate-900/80 rounded-xl border border-slate-700 shadow-inner">
-        <button onClick={() => setLeagueMode('public')} className={`flex-1 py-2.5 text-xs font-bold rounded-lg transition-all ${leagueMode === 'public' ? 'bg-cyan-500/20 text-cyan-400 shadow-[0_0_10px_rgba(6,182,212,0.2)]' : 'text-slate-400 hover:text-slate-300'}`}>Trường</button>
+        <button onClick={() => setLeagueMode('public')} className={`flex-1 py-2.5 text-xs font-bold rounded-lg transition-all ${leagueMode === 'public' ? 'bg-cyan-500/20 text-cyan-400 shadow-[0_0_10px_rgba(6,182,212,0.2)]' : 'text-slate-400 hover:text-slate-300'}`}>Cộng đồng</button>
         <button onClick={() => setLeagueMode('friends')} className={`flex-1 py-2.5 text-xs font-bold rounded-lg transition-all ${leagueMode === 'friends' ? 'bg-emerald-500/20 text-emerald-400 shadow-[0_0_10px_rgba(16,185,129,0.2)]' : 'text-slate-400 hover:text-slate-300'}`}>Bạn bè</button>
+        <button onClick={() => setLeagueMode('clubs')} className={`flex-1 py-2.5 text-xs font-bold rounded-lg transition-all ${leagueMode === 'clubs' ? 'bg-purple-500/20 text-purple-400 shadow-[0_0_10px_rgba(168,85,247,0.2)]' : 'text-slate-400 hover:text-slate-300'}`}>Câu lạc bộ</button>
       </div>
 
       {leagueMode === 'friends' && (
@@ -36,13 +44,16 @@ export default function LeagueTab({
         </button>
       )}
 
-      {/* Danh sách người chơi dạng Card */}
-      <div className="space-y-3 mt-6">
-        {sortedData.map((item, i) => {
+      {/* CÂU LẠC BỘ (CLUBS) HOẶC BẢNG XẾP HẠNG */}
+      {leagueMode === 'clubs' ? (
+        currentUser?.id && <ClubsView userId={currentUser.id} />
+      ) : (
+        <div className="space-y-3 mt-6">
+          {sortedData.map((item, index) => {
           const rankInfo = getRankInfo(item.wp);
-          const isFirst = i === 0;
-          const isSecond = i === 1;
-          const isThird = i === 2;
+          const isFirst = index === 0;
+          const isSecond = index === 1;
+          const isThird = index === 2;
 
           let rankStyle = {
             wrapper: "bg-slate-800/60 border-slate-700/50",
@@ -75,9 +86,9 @@ export default function LeagueTab({
           }
 
           return (
-            <div key={i} className={`relative flex items-center p-4 rounded-2xl backdrop-blur-sm border transition-all ${rankStyle.wrapper} ${item.isMe ? 'ring-2 ring-cyan-500/50 scale-[1.02]' : ''}`}>
+            <div key={item.id && item.id !== '' ? item.id : `fallback-league-${index}`} className={`relative flex items-center p-4 rounded-2xl backdrop-blur-sm border transition-all ${rankStyle.wrapper} ${item.isMe ? 'ring-2 ring-cyan-500/50 scale-[1.02]' : ''}`}>
               <div className={`w-8 font-black text-xl italic text-center mr-2 ${rankStyle.rankText}`}>
-                {i + 1}
+                {index + 1}
               </div>
 
               <div className="relative">
@@ -113,7 +124,9 @@ export default function LeagueTab({
             </div>
           );
         })}
-      </div>
+        </div>
+      )}
+
     </div>
   );
 }

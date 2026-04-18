@@ -52,20 +52,38 @@ export const DEFAULT_SOCIAL_PROFILE_STATS: SocialProfileStats = {
   posts: 0,
 };
 
-export const getRelativeTimeLabel = (value: string) => {
-  const createdAt = new Date(value);
-  const diffMs = Date.now() - createdAt.getTime();
-  const diffMinutes = Math.max(1, Math.floor(diffMs / 60000));
+export const getRelativeTimeLabel = (value: string | null | undefined): string => {
+  if (!value) return 'Vừa xong';
 
-  if (diffMinutes < 60) return `${diffMinutes} phút`;
+  const date = new Date(value);
+  const now = new Date();
+  
+  const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
 
-  const diffHours = Math.floor(diffMinutes / 60);
-  if (diffHours < 24) return `${diffHours} giờ`;
+  if (diffInSeconds < 60) {
+    return 'Vừa xong';
+  }
 
-  const diffDays = Math.floor(diffHours / 24);
-  if (diffDays < 7) return `${diffDays} ngày`;
+  const diffInMinutes = Math.floor(diffInSeconds / 60);
+  if (diffInMinutes < 60) {
+    return `${diffInMinutes} phút trước`;
+  }
 
-  return new Intl.DateTimeFormat('vi-VN', { day: '2-digit', month: '2-digit' }).format(createdAt);
+  const diffInHours = Math.floor(diffInMinutes / 60);
+  if (diffInHours < 24) {
+    return `${diffInHours} giờ trước`;
+  }
+
+  const diffInDays = Math.floor(diffInHours / 24);
+  if (diffInDays < 7) {
+    return `${diffInDays} ngày trước`;
+  }
+
+  return new Intl.DateTimeFormat('vi-VN', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  }).format(date);
 };
 
 export const buildProgressShareText = (params: {

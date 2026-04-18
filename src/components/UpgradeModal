@@ -1,0 +1,109 @@
+import { PRICING, PREMIUM_HIGHLIGHTS, type FeatureKey } from '../config/premium';
+
+type Props = {
+  open: boolean;
+  onClose: () => void;
+  feature?: FeatureKey;
+};
+
+export default function UpgradeModal({ open, onClose, feature }: Props) {
+  if (!open) return null;
+
+  // Tìm tính năng mà user đang cố truy cập để "nhấn mạnh"
+  const highlightedFeature = PREMIUM_HIGHLIGHTS.find(h => 
+    feature && h.title.toLowerCase().includes(feature.toLowerCase())
+  ) || PREMIUM_HIGHLIGHTS[0];
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6">
+      {/* Backdrop mờ ảo */}
+      <div 
+        className="absolute inset-0 bg-slate-900/80 backdrop-blur-md animate-in fade-in duration-300" 
+        onClick={onClose} 
+      />
+
+      {/* Thân Modal */}
+      <div className="relative w-full max-w-lg bg-white rounded-3xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300">
+        
+        {/* Header: Banner xịn xò */}
+        <div className="bg-gradient-to-br from-blue-600 to-indigo-700 p-8 text-white text-center relative overflow-hidden">
+          {/* Decor: Vòng tròn mờ */}
+          <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -mr-16 -mt-16" />
+          
+          <button 
+            onClick={onClose}
+            className="absolute top-4 right-4 w-8 h-8 flex items-center justify-center rounded-full bg-black/10 hover:bg-black/20 transition-colors"
+          >
+            ✕
+          </button>
+
+          <span className="inline-block px-3 py-1 bg-yellow-400 text-blue-900 text-[10px] font-black uppercase rounded-full mb-3 tracking-widest">
+            DigiWell Premium
+          </span>
+          <h2 className="text-2xl font-black mb-1">Mở khóa sức mạnh AI</h2>
+          <p className="text-blue-100 text-sm opacity-90">Đầu tư cho sức khỏe, gặt hái tương lai</p>
+        </div>
+
+        {/* Body: Danh sách tính năng */}
+        <div className="p-6 max-h-[60vh] overflow-y-auto bg-slate-50">
+          <div className="space-y-4">
+            {PREMIUM_HIGHLIGHTS.slice(0, 5).map((item, index) => (
+              <div 
+                key={index}
+                className={`flex items-start gap-4 p-3 rounded-2xl transition-all ${
+                  item === highlightedFeature ? 'bg-blue-50 border border-blue-200' : 'bg-white'
+                }`}
+              >
+                <span className="text-2xl">{item.icon}</span>
+                <div className="flex-1">
+                  <h4 className="text-sm font-bold text-slate-800">{item.title}</h4>
+                  <p className="text-xs text-slate-500 leading-relaxed">{item.description}</p>
+                </div>
+                <div className="text-[10px] font-bold text-blue-600 bg-blue-100 px-2 py-0.5 rounded">
+                  {item.premium}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Footer: Chọn gói & Nút thanh toán */}
+        <div className="p-6 bg-white border-t border-slate-100">
+          <div className="grid grid-cols-2 gap-4 mb-6">
+            {/* Gói Năm (Ưu tiên) */}
+            <label className="relative flex flex-col p-4 border-2 border-blue-600 bg-blue-50 rounded-2xl cursor-pointer">
+              <input type="radio" name="plan" className="hidden" defaultChecked />
+              <span className="absolute -top-3 left-1/2 -translate-x-1/2 px-2 py-0.5 bg-green-500 text-white text-[9px] font-bold rounded-full uppercase">
+                {PRICING.yearly.discount}
+              </span>
+              <span className="text-xs font-bold text-slate-500">Gói Năm</span>
+              <span className="text-lg font-black text-blue-700">{PRICING.yearly.label}</span>
+              <span className="text-[10px] text-blue-500">{PRICING.yearly.perMonth}</span>
+            </label>
+
+            {/* Gói Tháng */}
+            <label className="flex flex-col p-4 border-2 border-slate-200 rounded-2xl cursor-pointer hover:border-blue-300 transition-colors">
+              <input type="radio" name="plan" className="hidden" />
+              <span className="text-xs font-bold text-slate-500">Gói Tháng</span>
+              <span className="text-lg font-black text-slate-800">{PRICING.monthly.label}</span>
+              <span className="text-[10px] text-slate-400">Thanh toán mỗi tháng</span>
+            </label>
+          </div>
+
+          <button 
+            className="w-full py-4 bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-black rounded-2xl
+                       shadow-lg shadow-blue-500/30 hover:shadow-blue-500/50 hover:-translate-y-0.5 active:translate-y-0
+                       transition-all duration-200 uppercase tracking-wider"
+            onClick={() => alert("Đang chuyển hướng đến Stripe...")}
+          >
+            Nâng cấp Premium ngay
+          </button>
+          
+          <p className="text-center text-[10px] text-slate-400 mt-4">
+            Thanh toán an toàn qua Stripe. Hủy bất cứ lúc nào.
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}

@@ -52,4 +52,10 @@
     
     <!-- Optional: For Google Calendar sync -->
     <uses-permission android:name="android.permission.READ_CALENDAR" />
+
+    <!-- Health Connect / Google Fit Permissions (Multi-platform Health) -->
+    <uses-permission android:name="android.permission.ACTIVITY_RECOGNITION" />
+    <uses-permission android:name="android.permission.BODY_SENSORS" />
+    <uses-permission android:name="android.permission.health.READ_STEPS" />
+    <uses-permission android:name="android.permission.health.READ_HEART_RATE" />
 </manifest>

@@ -60,8 +60,8 @@ export default function AiChatModal({
             </p>
           </div>
         )}
-        {messages.map((msg, i) => (
-          <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+        {messages.map((msg, index) => (
+          <div key={`ai-msg-${index}`} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
             {msg.role !== 'user' && <div className="w-8 h-8 rounded-full bg-indigo-500/20 border border-indigo-500/30 flex items-center justify-center mr-2 flex-shrink-0 self-end mb-1"><Bot size={14} className="text-indigo-400" /></div>}
             <div className={`max-w-[75%] p-3.5 rounded-2xl shadow-sm ${msg.role === 'user' ? 'bg-cyan-500 text-slate-900 rounded-br-sm font-medium' : 'bg-slate-800 border border-slate-700 text-slate-200 rounded-bl-sm'}`}><p className="text-sm leading-relaxed whitespace-pre-wrap">{msg.content}</p></div>
           </div>

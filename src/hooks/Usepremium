@@ -1,0 +1,220 @@
+// ============================================================
+// DigiWell — usePremium Hook
+// Quản lý trạng thái subscription + rate limiting từ Supabase
+// ============================================================
+
+import { useState, useEffect, useCallback } from 'react';
+import { supabase } from '../lib/supabase';
+import { DAILY_LIMITS, FEATURES, type FeatureKey, type PremiumTier } from '../config/premium';
+
+// ── Types ──────────────────────────────────────────────────
+
+export type UsageToday = {
+  aiMessages: number;
+  aiAdvice:   number;
+  imageScan:  number;
+};
+
+export type PremiumState = {
+  tier:             PremiumTier;
+  isPremium:        boolean;
+  subscriptionEnd:  Date | null;
+  isExpiringSoon:   boolean;   // còn < 7 ngày
+  loading:          boolean;
+};
+
+// ── Main Hook ──────────────────────────────────────────────
+
+export function usePremium() {
+  const [state, setState] = useState<PremiumState>({
+    tier: 'free',
+    isPremium: false,
+    subscriptionEnd: null,
+    isExpiringSoon: false,
+    loading: true,
+  });
+
+  const [usage, setUsage] = useState<UsageToday>({
+    aiMessages: 0,
+    aiAdvice:   0,
+    imageScan:  0,
+  });
+
+  // ── Fetch subscription status ────────────────────────────
+
+  const fetchSubscription = useCallback(async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      setState(s => ({ ...s, loading: false }));
+      return;
+    }
+
+    const { data: profile, error } = await supabase
+      .from('profiles')
+      .select('subscription_tier, subscription_end')
+      .eq('id', user.id)
+      .single();
+
+    if (error || !profile) {
+      setState(s => ({ ...s, loading: false }));
+      return;
+    }
+
+    const tier = profile.subscription_tier as PremiumTier;
+    const endDate = profile.subscription_end ? new Date(profile.subscription_end) : null;
+    const now = new Date();
+
+    // Premium hợp lệ nếu tier = premium VÀ chưa hết hạn (hoặc không có ngày hết hạn)
+    const isPremium = tier === 'premium' && (endDate === null || endDate > now);
+    const isExpiringSoon = isPremium && endDate !== null
+      ? (endDate.getTime() - now.getTime()) < 7 * 24 * 60 * 60 * 1000
+      : false;
+
+    setState({
+      tier: isPremium ? 'premium' : 'free',
+      isPremium,
+      subscriptionEnd: endDate,
+      isExpiringSoon,
+      loading: false,
+    });
+  }, []);
+
+  // ── Fetch today's AI usage ───────────────────────────────
+
+  const fetchUsage = useCallback(async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
+    const today = new Date().toISOString().split('T')[0];
+
+    const { data } = await supabase
+      .from('ai_usage')
+      .select('message_count, advice_count, scan_count')
+      .eq('user_id', user.id)
+      .eq('date', today)
+      .single();
+
+    if (data) {
+      setUsage({
+        aiMessages: data.message_count,
+        aiAdvice:   data.advice_count,
+        imageScan:  data.scan_count,
+      });
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchSubscription();
+    fetchUsage();
+
+    // Realtime subscription changes (nếu user upgrade xong thì cập nhật ngay)
+    const channel = supabase
+      .channel('profile_subscription')
+      .on('postgres_changes', {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'profiles',
+      }, () => {
+        fetchSubscription();
+      })
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, [fetchSubscription, fetchUsage]);
+
+  // ── Check feature access ─────────────────────────────────
+
+  const canUseFeature = useCallback(
+    (feature: FeatureKey): boolean => {
+      const tier = state.isPremium ? 'premium' : 'free';
+      return FEATURES[feature][tier];
+    },
+    [state.isPremium],
+  );
+
+  // ── Check + increment daily AI usage ────────────────────
+
+  const checkAndIncrementAiMessage = useCallback(async (): Promise<{
+    allowed: boolean;
+    remaining: number;
+  }> => {
+    if (state.isPremium) return { allowed: true, remaining: Infinity };
+
+    const limit = DAILY_LIMITS.free.aiMessages;
+    if (usage.aiMessages >= limit) {
+      return { allowed: false, remaining: 0 };
+    }
+
+    // Gọi Supabase function để increment atomically
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return { allowed: false, remaining: 0 };
+
+    const { data: newCount } = await supabase.rpc('increment_ai_usage', {
+      uid: user.id,
+      col_name: 'message_count',
+    });
+
+    const count = newCount as number ?? usage.aiMessages + 1;
+    setUsage(u => ({ ...u, aiMessages: count }));
+
+    return {
+      allowed: true,
+      remaining: Math.max(0, limit - count),
+    };
+  }, [state.isPremium, usage.aiMessages]);
+
+  const checkAndIncrementImageScan = useCallback(async (): Promise<{
+    allowed: boolean;
+    remaining: number;
+  }> => {
+    if (state.isPremium) return { allowed: true, remaining: Infinity };
+
+    const limit = DAILY_LIMITS.free.imageScan;
+    if (usage.imageScan >= limit) {
+      return { allowed: false, remaining: 0 };
+    }
+
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return { allowed: false, remaining: 0 };
+
+    const { data: newCount } = await supabase.rpc('increment_ai_usage', {
+      uid: user.id,
+      col_name: 'scan_count',
+    });
+
+    const count = newCount as number ?? usage.imageScan + 1;
+    setUsage(u => ({ ...u, imageScan: count }));
+
+    return {
+      allowed: true,
+      remaining: Math.max(0, limit - count),
+    };
+  }, [state.isPremium, usage.imageScan]);
+
+  // ── Remaining counts (để hiển thị UI) ───────────────────
+
+  const getRemainingCounts = useCallback(() => {
+    if (state.isPremium) {
+      return {
+        aiMessages: Infinity,
+        aiAdvice:   Infinity,
+        imageScan:  Infinity,
+      };
+    }
+    return {
+      aiMessages: Math.max(0, DAILY_LIMITS.free.aiMessages - usage.aiMessages),
+      aiAdvice:   Math.max(0, DAILY_LIMITS.free.aiAdvice   - usage.aiAdvice),
+      imageScan:  Math.max(0, DAILY_LIMITS.free.imageScan  - usage.imageScan),
+    };
+  }, [state.isPremium, usage]);
+
+  return {
+    ...state,
+    usage,
+    canUseFeature,
+    checkAndIncrementAiMessage,
+    checkAndIncrementImageScan,
+    getRemainingCounts,
+    refresh: fetchSubscription,
+  };
+}

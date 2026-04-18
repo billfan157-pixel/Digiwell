@@ -1,5 +1,23 @@
-create extension if not exists pgcrypto;
+-- 1. Tạo bảng profiles nếu chưa có (Để làm gốc cho các bảng social)
+create table if not exists public.profiles (
+  id uuid references auth.users on delete cascade primary key,
+  username text unique,
+  full_name text,
+  avatar_url text,
+  updated_at timestamptz
+);
 
+-- 2. Bật RLS cho bảng profiles
+alter table public.profiles enable row level security;
+
+-- 3. Cho phép mọi người xem profile (Cần thiết để hiện author_id trong post)
+create policy "Profiles are viewable by everyone" on public.profiles
+  for select using (true);
+
+-- 4. Cho phép người dùng tự sửa profile của mình
+create policy "Users can update own profile" on public.profiles
+  for update using (auth.uid() = id);
+create extension if not exists pgcrypto;
 create table if not exists public.social_follows (
   follower_id uuid not null references public.profiles (id) on delete cascade,
   following_id uuid not null references public.profiles (id) on delete cascade,

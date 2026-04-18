@@ -1,15 +1,40 @@
 import React from 'react';
-import { Droplet } from 'lucide-react';
+import { Droplet, X, Edit2, Trash2, Clock } from 'lucide-react';
+import { motion } from 'framer-motion';
+
+type HistoryEntry = {
+  id?: string | null;
+  timestamp?: number | string | null;
+  created_at?: string | null;
+  amount?: number | null;
+  amount?: number | null;
+  name?: string | null;
+};
 
 interface HistoryModalProps {
   showHistory: boolean;
   setShowHistory: (show: boolean) => void;
-  waterEntries: any[];
+  waterEntries: HistoryEntry[];
   waterIntake: number;
-  setEditingEntry: (entry: any) => void;
+  setEditingEntry: (entry: HistoryEntry) => void;
   setEditAmount: (amount: string) => void;
-  handleDeleteEntry: (id: string) => void;
+  handleDeleteEntry: (id: string, amount: number) => void;
 }
+
+const formatEntryTime = (entry: HistoryEntry) => {
+  const rawTime = entry.timestamp ?? entry.created_at;
+
+  if (!rawTime) return '--:--';
+
+  const parsed = new Date(rawTime);
+
+  if (Number.isNaN(parsed.getTime())) return '--:--';
+
+  return parsed.toLocaleTimeString('vi-VN', {
+    hour: '2-digit',
+    minute: '2-digit'
+  });
+};
 
 export default function HistoryModal({
   showHistory,
@@ -20,46 +45,136 @@ export default function HistoryModal({
   setEditAmount,
   handleDeleteEntry
 }: HistoryModalProps) {
+
   if (!showHistory) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center" style={{ background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(4px)' }} onClick={() => setShowHistory(false)}>
-      <div className="w-full max-w-md rounded-t-3xl p-6 pb-10" style={{ background: '#1e293b', border: '1px solid rgba(6,182,212,0.2)' }} onClick={e => e.stopPropagation()}>
-        <div className="flex items-center justify-between mb-5">
+    <div
+      className="fixed inset-0 z-[100] flex items-end justify-center bg-slate-950/80 backdrop-blur-sm"
+      onClick={() => setShowHistory(false)}
+    >
+      <motion.div
+        initial={{ y: '100%' }}
+        animate={{ y: 0 }}
+        exit={{ y: '100%' }}
+        transition={{ type: "spring", damping: 25, stiffness: 200 }}
+        className="w-full max-w-md rounded-t-[2.5rem] p-6 pb-12 bg-slate-900 border-t border-white/10 shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Handle */}
+        <div className="w-12 h-1.5 bg-white/10 rounded-full mx-auto mb-6" />
+
+        {/* Header */}
+        <div className="flex items-center justify-between mb-6">
           <div>
-            <p className="text-cyan-400 text-[10px] font-bold uppercase tracking-widest">Hôm nay</p>
-            <h3 className="text-xl font-black text-white">Lịch sử uống nước</h3>
+            <p className="text-cyan-400 text-[10px] font-black uppercase tracking-[0.2em]">
+              Nhật ký
+            </p>
+            <h3 className="text-2xl font-black text-white">
+              Lịch sử uống
+            </h3>
           </div>
-          <button onClick={() => setShowHistory(false)} className="text-slate-400 text-xs bg-slate-700 px-3 py-1.5 rounded-lg font-bold">Đóng</button>
+          <button
+            onClick={() => setShowHistory(false)}
+            className="p-2 rounded-full bg-slate-800 text-slate-400"
+          >
+            <X size={20} />
+          </button>
         </div>
 
+        {/* EMPTY */}
         {waterEntries.length === 0 ? (
-          <div className="text-center py-10">
-            <Droplet size={36} className="text-slate-600 mx-auto mb-3" />
-            <p className="text-slate-400 text-sm">Chưa có ghi nhận nào hôm nay</p>
+          <div className="text-center py-16">
+            <div className="w-16 h-16 bg-slate-800 rounded-full flex items-center justify-center mx-auto mb-4">
+              <Droplet size={30} className="text-slate-600" />
+            </div>
+            <p className="text-slate-500 font-medium">
+              Hôm nay đệ chưa uống giọt nào...
+            </p>
           </div>
         ) : (
-          <div className="space-y-2 max-h-96 overflow-y-auto">
-            {[...waterEntries].reverse().map((entry) => {
-              const t = new Date(entry.timestamp);
-              const timeStr = new Intl.DateTimeFormat('vi-VN', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }).format(t);
+            <div className="space-y-3 max-h-[50vh] overflow-y-auto pr-2 scrollbar-hide">
+              {[...waterEntries].reverse().map((entry, index) => {
+              const timeStr = formatEntryTime(entry);
+
+              // ✅ AMOUNT SAFE (fix bug ||)
+              const amount =
+                entry.amount ?? entry.amount ?? 0;
+
+              // ✅ KEY SIÊU AN TOÀN (KHÔNG BAO GIỜ TRÙNG)
+              const key = `${entry.id ?? 'temp'}-${entry.created_at ?? index}-${index}`;
+
               return (
-                <div key={entry.id} className="flex items-center gap-3 p-3 rounded-xl" style={{ background: 'rgba(6,182,212,0.06)', border: '1px solid rgba(6,182,212,0.12)' }}>
-                  <div className="w-9 h-9 rounded-xl bg-cyan-500/20 flex items-center justify-center flex-shrink-0"><Droplet size={16} className="text-cyan-400" /></div>
-                  <div className="flex-1">
-                    <p className={`font-bold text-sm ${(entry.actual_ml !== undefined && entry.actual_ml < 0) ? 'text-red-400' : 'text-white'}`}>{(entry.actual_ml !== undefined && entry.actual_ml < 0) ? '' : '+'}{entry.actual_ml || entry.amount} ml</p>
-                    <p className="text-slate-400 text-[10px] line-clamp-1 truncate pr-2">{timeStr} · {entry.name || 'Nước lọc'}</p>
+                <div
+                  key={key}
+                  className="flex items-center gap-4 p-4 rounded-2xl bg-white/5 border border-white/5 hover:bg-white/10 transition-colors"
+                >
+                  {/* ICON */}
+                  <div className="w-10 h-10 rounded-xl bg-cyan-500/10 flex items-center justify-center flex-shrink-0">
+                    <Droplet size={18} className="text-cyan-400" />
                   </div>
-                  <button onClick={() => { setEditingEntry(entry); setEditAmount(entry.amount.toString()); setShowHistory(false); }} className="px-3 py-1.5 rounded-lg text-[10px] font-bold text-cyan-400 border border-cyan-500/30 bg-cyan-500/10 mr-1">Sửa</button>
-                  <button onClick={() => handleDeleteEntry(entry.id)} className="px-3 py-1.5 rounded-lg text-[10px] font-bold text-red-400 border border-red-500/30 bg-red-500/10">Xóa</button>
+
+                  {/* CONTENT */}
+                  <div className="flex-1">
+                    <p className="font-black text-white text-lg">
+                      {amount}
+                      <span className="text-xs text-slate-500 ml-1">ml</span>
+                    </p>
+
+                    <div className="flex items-center gap-2 text-slate-500 text-[10px] font-bold uppercase tracking-wider">
+                      <Clock size={10} />
+                      {timeStr} • {entry.name ?? 'Nước lọc'}
+                    </div>
+                  </div>
+
+                  {/* ACTION */}
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => {
+                        setEditingEntry(entry);
+                        setEditAmount(String(amount));
+                        setShowHistory(false);
+                      }}
+                      className="p-2 rounded-lg bg-slate-800 text-cyan-400"
+                    >
+                      <Edit2 size={14} />
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        if (!entry.id) return;
+                        handleDeleteEntry(entry.id, amount);
+                      }}
+                      className="p-2 rounded-lg bg-rose-500/10 text-rose-400"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
                 </div>
               );
             })}
           </div>
         )}
 
-        <div className="mt-4 pt-4 border-t border-slate-700 flex justify-between items-center"><p className="text-slate-400 text-xs">{waterEntries.length} lần · Tổng cộng</p><p className="text-cyan-400 font-black">{waterIntake} ml</p></div>
-      </div>
+        {/* FOOTER */}
+        <div className="mt-6 pt-6 border-t border-white/5 flex justify-between items-end">
+          <div>
+            <p className="text-[10px] text-slate-500 font-black uppercase tracking-widest">
+              Tổng nạp hôm nay
+            </p>
+            <p className="text-3xl font-black text-white">
+              {waterIntake}
+              <span className="text-sm text-cyan-500 ml-1">ml</span>
+            </p>
+          </div>
+
+          <div className="text-right">
+            <p className="text-[10px] text-slate-500 font-black uppercase tracking-widest">
+              {waterEntries.length} lần uống
+            </p>
+          </div>
+        </div>
+      </motion.div>
     </div>
   );
 }

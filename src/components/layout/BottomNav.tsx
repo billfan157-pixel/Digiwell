@@ -1,6 +1,6 @@
-import { Home, BarChart2, Trophy, Rss, User } from 'lucide-react';
+import { Home, BarChart2, Trophy, Swords, Rss, User, Settings } from 'lucide-react';
 
-export type TabType = 'home' | 'insight' | 'league' | 'feed' | 'profile';
+export type TabType = 'home' | 'insight' | 'league' | 'arena' | 'feed' | 'profile';
 
 interface BottomNavProps {
   activeTab: TabType;
@@ -12,6 +12,7 @@ const BottomNav = (props: BottomNavProps) => {
     { id: 'home', icon: Home, label: 'Home' },
     { id: 'insight', icon: BarChart2, label: 'Insight' },
     { id: 'league', icon: Trophy, label: 'League' },
+    { id: 'arena', icon: Swords, label: 'Arena' },
     { id: 'feed', icon: Rss, label: 'Feed' },
     { id: 'profile', icon: User, label: 'Profile' },
   ];

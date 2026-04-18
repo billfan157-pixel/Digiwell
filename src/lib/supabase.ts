@@ -1,17 +1,21 @@
 import { createClient } from '@supabase/supabase-js';
 
-// Thông tin kết nối trực tiếp cho DigiWell project
-const supabaseUrl = 'https://plbwqjdrivyffrhpbmvm.supabase.co';
-const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBsYndxamRyaXZ5ZmZyaHBibXZtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUxMjY3NjYsImV4cCI6MjA5MDcwMjc2Nn0.nZDHmQyVdn4a99zISog9-hzOzsFQ7G8RClV8GPe7sJw';
+// Get Supabase credentials from environment variables
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-// Khởi tạo supabase client
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+// Khởi tạo supabase client dưới dạng Singleton để tránh lỗi Multiple GoTrueClient instances khi HMR
+const globalAny = globalThis as any;
+if (!globalAny.__supabaseClient) {
+  globalAny.__supabaseClient = createClient(supabaseUrl, supabaseAnonKey);
+}
+
+export const supabase = globalAny.__supabaseClient;
 
 /**
- * Biến kiểm tra cấu hình. 
- * Luôn trả về true vì mình đã dán cứng Key, giúp bỏ qua các màn hình cảnh báo thiếu .env
+ * Check if Supabase is configured properly
  */
-export const isSupabaseConfigured = true;
+export const isSupabaseConfigured = !!(supabaseUrl && supabaseAnonKey);
 
 // Export thêm một hàm check (nếu các component khác có gọi)
-export const checkSupabaseConfig = () => true;
+export const checkSupabaseConfig = () => isSupabaseConfigured;

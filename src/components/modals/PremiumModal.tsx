@@ -32,8 +32,8 @@ export default function PremiumModal({
             'Xuất báo cáo PDF chuẩn Y khoa',
             'Chế độ Nhịn ăn gián đoạn (Fasting)',
             'AI Analytics chuyên sâu phân tích thói quen',
-          ].map((ft, i) => (
-            <li key={i} className="flex items-center gap-3 text-sm text-slate-300">
+          ].map((ft, index) => (
+            <li key={`premium-ft-${index}`} className="flex items-center gap-3 text-sm text-slate-300">
               <div className="w-5 h-5 rounded-full bg-amber-500/20 flex items-center justify-center flex-shrink-0">
                 <Target size={12} className="text-amber-400" />
               </div>
