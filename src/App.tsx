@@ -385,7 +385,7 @@ function AppContent() {
           age: data.age, height: data.height, weight: data.weight, activity: data.activity,
           climate: data.climate, goal: data.goal, wakeUp: data.wake_up, bedTime: data.bed_time,
 
-          water_goal: data.water_goal, wp: data.wp, coins: data.coins, total_exp: data.total_exp, level: data.level,
+          water_goal: data.water_goal, wp: data.wp, coins: data.coins, total_exp: data.total_exp, level: levelFromExp(data.total_exp || 0),
           water_today: data.water_today, total_water: data.total_water,
           onboarding_completed: data.onboarding_completed
         });
@@ -401,7 +401,7 @@ function AppContent() {
             id: parsed.id, nickname: parsed.nickname, password: '', gender: parsed.gender,
             age: parsed.age, height: parsed.height, weight: parsed.weight, activity: parsed.activity,
             climate: parsed.climate, goal: parsed.goal, wakeUp: parsed.wake_up, bedTime: parsed.bed_time,
-            water_goal: parsed.water_goal, wp: parsed.wp, coins: parsed.coins, total_exp: parsed.total_exp, level: parsed.level,
+            water_goal: parsed.water_goal, wp: parsed.wp, coins: parsed.coins, total_exp: parsed.total_exp, level: levelFromExp(parsed.total_exp || 0),
             water_today: parsed.water_today, total_water: parsed.total_water,
             onboarding_completed: parsed.onboarding_completed
           });
@@ -422,61 +422,57 @@ function AppContent() {
     }
   }, [profile?.id, refetchProfile]); 
 
-  // [NEW] Optimistic UI Update Wrapper cho thao tác Uống Nước
+  // FIX: Refactored to prevent race conditions with stale state
   const handleWaterSync = useCallback(async (optimisticAmount?: number, optimisticExp?: number) => {
-    if (optimisticAmount !== undefined && optimisticExp !== undefined) {
-      // Optimistic update for UI responsiveness
-      setProfile((prev: any) => {
-        if (!prev) return prev;
-        const updated = {
-          ...prev,
-          water_today: (prev.water_today || 0) + optimisticAmount,
-          total_water: (prev.total_water || 0) + optimisticAmount,
-          total_exp: (prev.total_exp || 0) + optimisticExp
-        };
-        // Tính level dựa trên total_exp với progression curve
-        updated.level = levelFromExp(updated.total_exp);
-        if (updated.id && updated.id !== 'undefined') {
-          localStorage.setItem('cached_profile', JSON.stringify(updated));
-        }
-        return updated;
-      });
+    if (optimisticAmount === undefined || optimisticExp === undefined) {
+      await refetchProfile();
+      return;
+    }
 
-        // Manual update DB after state update
-        const currentProfile = profile;
-        if (currentProfile && currentProfile.id !== 'undefined') {
-          const newExp = (currentProfile.total_exp || 0) + optimisticExp;
-          const newLevel = levelFromExp(newExp);
-          const { error } = await supabase.from('profiles').update({
-            total_exp: newExp,
-            level: newLevel,
-            water_today: (currentProfile.water_today || 0) + optimisticAmount,
-            total_water: (currentProfile.total_water || 0) + optimisticAmount
-          }).eq('id', currentProfile.id);
-          if (error) {
-            console.error('Profile update failed:', error);
-            toast.error('Cập nhật profile thất bại');
-          } else {
-            // Run quest engine after successful profile update
-            const stats = latestStatsRef.current;
-            const questCtx: QuestEngineContext = {
-              userId: currentProfile.id,
-              waterToday: stats.waterIntake + (optimisticAmount || 0),
-              waterGoal: currentProfile.water_goal || 2000,
-              streak: stats.streak,
-              totalWater: (currentProfile.total_water || 0) + (optimisticAmount || 0),
-              logCountToday: stats.logCountToday + (optimisticAmount && optimisticAmount > 0 ? 1 : 0),
-              weeklyDays: stats.weeklyDays,
-            };
-            runQuestEngine(questCtx);
-          }
-        }
+    let updatedProfileForDb: any = null;
+
+    // Use the functional update form of setProfile to get the latest state
+    setProfile((prev: any) => {
+      if (!prev) return prev;
+
+      const newTotalExp = (prev.total_exp || 0) + optimisticExp;
+      const newLevel = levelFromExp(newTotalExp);
+      const newWaterToday = (prev.water_today || 0) + optimisticAmount;
+      const newTotalWater = (prev.total_water || 0) + optimisticAmount;
+
+      updatedProfileForDb = {
+        ...prev,
+        total_exp: newTotalExp,
+        level: newLevel,
+        water_today: newWaterToday,
+        total_water: newTotalWater,
+      };
+
+      if (updatedProfileForDb.id && updatedProfileForDb.id !== 'undefined') {
+        localStorage.setItem('cached_profile', JSON.stringify(updatedProfileForDb));
+      }
+      return updatedProfileForDb;
+    });
+
+    // Now, `updatedProfileForDb` holds the correct new state. Update the database.
+    if (updatedProfileForDb && updatedProfileForDb.id) {
+      const { error } = await supabase.from('profiles').update({
+        total_exp: updatedProfileForDb.total_exp,
+        level: updatedProfileForDb.level,
+        water_today: updatedProfileForDb.water_today,
+        total_water: updatedProfileForDb.total_water,
+        last_water_date: new Date().toISOString().split('T')[0],
+      }).eq('id', updatedProfileForDb.id);
+
+      if (error) {
+        console.error('Profile update failed:', error);
+        toast.error('Cập nhật profile thất bại. Đang hoàn tác...');
+        await refetchProfile(); // Revert UI by refetching from DB
+      }
     } else {
-      // Database triggers will automatically recalculate total_exp
-      // Just refetch definitive state from database
       await refetchProfile();
     }
-  }, [profile, setProfile, refetchProfile]);
+  }, [setProfile, refetchProfile]);
 
   // Hàm trừ tiền vàng dùng trong Shop
   const handleSpendCoins = async (amount: number) => {
