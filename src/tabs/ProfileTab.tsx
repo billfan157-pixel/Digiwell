@@ -62,11 +62,37 @@ export default function ProfileTab({
 
       toast.success(`✅ Đã cập nhật level! (${data?.[0]?.updated_count || 0} records)`);
 
-      // Refresh profile data
+      // Refresh profile data bằng cách force reload
       window.location.reload();
     } catch (error: any) {
       console.error('Recalculate level error:', error);
       toast.error('❌ Lỗi cập nhật level: ' + error.message);
+    }
+  };
+
+  // Function để sync profile data từ backend
+  const syncProfileData = async () => {
+    if (!profile?.id) return;
+
+    try {
+      const { data: freshProfile, error } = await supabase
+        .from('profiles')
+        .select('id, total_exp, level, water_today, total_water, water_goal, coins, wp')
+        .eq('id', profile.id)
+        .single();
+
+      if (error) throw error;
+
+      // Update local state với data từ backend
+      setProfile(freshProfile);
+
+      toast.success('✅ Đã sync data từ backend!');
+
+      // Log để debug
+      console.log('Synced profile:', freshProfile);
+    } catch (error: any) {
+      console.error('Sync profile error:', error);
+      toast.error('❌ Lỗi sync data: ' + error.message);
     }
   };
 
@@ -267,12 +293,19 @@ export default function ProfileTab({
 
         {profile?.id && <BadgesGrid userId={profile.id} />}
 
-          {/* DEBUG: Recalculate Level Button (chỉ hiện khi development) */}
+          {/* DEBUG: Admin Tools (chỉ hiện khi development) */}
           {process.env.NODE_ENV === 'development' && (
-            <div className="rounded-2xl border border-blue-500/20 bg-blue-500/5 p-4 mt-2">
-              <button onClick={recalculateLevel} className="w-full py-4 rounded-full border border-blue-500/30 text-blue-400 text-sm font-bold bg-blue-500/10 active:scale-95 transition-all flex items-center justify-center gap-2 hover:bg-blue-500/20">
-                🔄 Cập nhật Level
-              </button>
+            <div className="space-y-3 mt-4">
+              <div className="rounded-2xl border border-blue-500/20 bg-blue-500/5 p-4">
+                <button onClick={recalculateLevel} className="w-full py-4 rounded-full border border-blue-500/30 text-blue-400 text-sm font-bold bg-blue-500/10 active:scale-95 transition-all flex items-center justify-center gap-2 hover:bg-blue-500/20">
+                  🔄 Cập nhật Level
+                </button>
+              </div>
+              <div className="rounded-2xl border border-green-500/20 bg-green-500/5 p-4">
+                <button onClick={syncProfileData} className="w-full py-4 rounded-full border border-green-500/30 text-green-400 text-sm font-bold bg-green-500/10 active:scale-95 transition-all flex items-center justify-center gap-2 hover:bg-green-500/20">
+                  🔄 Sync Profile Data
+                </button>
+              </div>
             </div>
           )}
 
