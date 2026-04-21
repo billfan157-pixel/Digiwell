@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import {
-  Target, Watch, CloudSun, Calendar, Lock
+  Target, Watch, CloudSun, Calendar, Lock, RefreshCw
 } from 'lucide-react';
 import { Toaster, toast } from 'sonner';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
@@ -379,13 +379,16 @@ function AppContent() {
       }
 
       if (data) {
+        // Remove level from database - always calculate from total_exp
+        const calculatedLevel = levelFromExp(data.total_exp || 0);
+
         localStorage.setItem('cached_profile', JSON.stringify(data));
         setProfile({
           id: data.id, nickname: data.nickname, password: '', gender: data.gender,
           age: data.age, height: data.height, weight: data.weight, activity: data.activity,
           climate: data.climate, goal: data.goal, wakeUp: data.wake_up, bedTime: data.bed_time,
 
-          water_goal: data.water_goal, wp: data.wp, coins: data.coins, total_exp: data.total_exp, level: levelFromExp(data.total_exp || 0),
+          water_goal: data.water_goal, wp: data.wp, coins: data.coins, total_exp: data.total_exp, level: calculatedLevel,
           water_today: data.water_today, total_water: data.total_water,
           onboarding_completed: data.onboarding_completed
         });
@@ -414,6 +417,13 @@ function AppContent() {
     }
   }, [profile?.id, setProfile]);
 
+  // Hàm đồng bộ dữ liệu từ backend thủ công (Debug)
+  const syncProfileData = useCallback(async () => {
+    const toastId = toast.loading("Đang đồng bộ dữ liệu...");
+    await refetchProfile();
+    toast.success("Đồng bộ thành công!", { id: toastId });
+  }, [refetchProfile]);
+
   // Force refetch profile after fixes
   useEffect(() => {
     if (profile?.id && profile.id !== 'undefined') {
@@ -436,16 +446,16 @@ function AppContent() {
       if (!prev) return prev;
 
       const newTotalExp = (prev.total_exp || 0) + optimisticExp;
-      const newLevel = levelFromExp(newTotalExp);
+          // Level is calculated from total_exp - no need to store in DB
       const newWaterToday = (prev.water_today || 0) + optimisticAmount;
       const newTotalWater = (prev.total_water || 0) + optimisticAmount;
 
       updatedProfileForDb = {
         ...prev,
         total_exp: newTotalExp,
-        level: newLevel,
         water_today: newWaterToday,
         total_water: newTotalWater,
+        // level is calculated from total_exp - not stored in DB
       };
 
       if (updatedProfileForDb.id && updatedProfileForDb.id !== 'undefined') {
@@ -458,16 +468,19 @@ function AppContent() {
     if (updatedProfileForDb && updatedProfileForDb.id) {
       const { error } = await supabase.from('profiles').update({
         total_exp: updatedProfileForDb.total_exp,
-        level: updatedProfileForDb.level,
         water_today: updatedProfileForDb.water_today,
         total_water: updatedProfileForDb.total_water,
         last_water_date: new Date().toISOString().split('T')[0],
+        // level is calculated from total_exp - not stored in DB
       }).eq('id', updatedProfileForDb.id);
 
       if (error) {
         console.error('Profile update failed:', error);
         toast.error('Cập nhật profile thất bại. Đang hoàn tác...');
         await refetchProfile(); // Revert UI by refetching from DB
+      } else {
+        // Đồng bộ lại với backend sau khi update để lấy exp từ triggers/quests
+        await refetchProfile();
       }
     } else {
       await refetchProfile();
@@ -1486,6 +1499,17 @@ function AppContent() {
         onSpendCoins={handleSpendCoins} 
       />
       
+      {/* Nút Sync Debug */}
+      {import.meta.env.DEV && profile?.id && profile.id !== 'undefined' && (
+        <button 
+          onClick={syncProfileData}
+          className="absolute bottom-24 right-4 z-50 bg-indigo-600 text-white p-3 rounded-full shadow-lg opacity-50 hover:opacity-100 transition-opacity"
+          title="Sync Profile Data"
+        >
+          <RefreshCw size={20} />
+        </button>
+      )}
+
       <QuestModal
         isOpen={showQuestModal}
         onClose={() => setShowQuestModal(false)}

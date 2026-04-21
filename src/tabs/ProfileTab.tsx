@@ -77,19 +77,25 @@ export default function ProfileTab({
     try {
       const { data: freshProfile, error } = await supabase
         .from('profiles')
-        .select('id, total_exp, level, water_today, total_water, water_goal, coins, wp')
+        .select('id, total_exp, water_today, total_water, water_goal, coins, wp')
         .eq('id', profile.id)
         .single();
 
       if (error) throw error;
 
-      // Update local state với data từ backend
-      setProfile(freshProfile);
+      // Calculate level from total_exp
+      const calculatedLevel = levelFromExp(freshProfile.total_exp || 0);
+
+      // Update local state với data từ backend + calculated level
+      setProfile({
+        ...freshProfile,
+        level: calculatedLevel
+      });
 
       toast.success('✅ Đã sync data từ backend!');
 
       // Log để debug
-      console.log('Synced profile:', freshProfile);
+      console.log('Synced profile:', { ...freshProfile, level: calculatedLevel });
     } catch (error: any) {
       console.error('Sync profile error:', error);
       toast.error('❌ Lỗi sync data: ' + error.message);
