@@ -23,17 +23,17 @@ const LevelBar = ({
   exp,
   onDetailClick,
 }: LevelBarProps) => {
-  const { progress, remainingExp, nextLevelExp, rankTitle, safeLevel } = useMemo(() => {
+  const { progress, remainingExp, nextLevelExp, rankTitle, safeLevel, progressInLevel, requiredExpForLevel } = useMemo(() => {
     const safeLevel = Math.max(level, 1);
     const expForCurrentLevelStart = totalExpForLevel(safeLevel);
-    const progressInLevel = exp - expForCurrentLevelStart;
+    const progressInLevel = Math.max(0, exp - expForCurrentLevelStart);
     const requiredExpForLevel = expRequiredForLevel(safeLevel);
     const progress = requiredExpForLevel > 0 ? Math.min(100, (progressInLevel / requiredExpForLevel) * 100) : 0;
     const nextLevelTotalExp = totalExpForLevel(safeLevel + 1);
     const remainingExp = Math.max(0, nextLevelTotalExp - exp);
     const rankTitle = getRankTitle(safeLevel);
 
-    return { progress, remainingExp, nextLevelExp: nextLevelTotalExp, rankTitle, safeLevel };
+    return { progress, remainingExp, nextLevelExp: nextLevelTotalExp, rankTitle, safeLevel, progressInLevel, requiredExpForLevel };
   }, [level, exp]);
 
   return (
@@ -71,7 +71,7 @@ const LevelBar = ({
             </div>
 
             <p className="text-slate-500 text-[10px] uppercase tracking-widest font-bold mt-1">
-              {(exp || 0).toLocaleString()} / {nextLevelExp.toLocaleString()} EXP
+              {progressInLevel.toLocaleString()} / {requiredExpForLevel.toLocaleString()} EXP (Level {safeLevel})
             </p>
           </div>
         </div>
@@ -109,7 +109,7 @@ const LevelBar = ({
         </span>
 
         <span className="text-amber-400 font-semibold">
-          Còn {remainingExp.toLocaleString()} EXP nữa
+          Còn {(requiredExpForLevel - progressInLevel).toLocaleString()} EXP đến Level {safeLevel + 1}
         </span>
       </div>
     </div>
