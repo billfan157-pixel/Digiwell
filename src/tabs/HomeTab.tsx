@@ -1,4 +1,4 @@
-import { Droplet, Coffee, Activity, Zap, Camera, History, Share2, LayoutGrid, Plus, LogOut, Settings, CloudSun, Heart, X, Menu, User, RefreshCw, ChevronLeft, Edit2, ChevronRight, Clock, Coins, Bluetooth, BatteryFull, ScrollText } from 'lucide-react';
+import { Droplet, Coffee, Activity, Zap, Camera, History, Share2, LayoutGrid, Plus, LogOut, Settings, CloudSun, Heart, X, Menu, User, ChevronLeft, Edit2, ChevronRight, Clock, Coins, Bluetooth, BatteryFull, ScrollText } from 'lucide-react';
 import { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
@@ -178,7 +178,7 @@ const HomeTab = (props: HomeTabProps) => {
   const [showLevelDetail, setShowLevelDetail] = useState(false);
   const [showGoalDetail, setShowGoalDetail] = useState(false);
 
-  const { isSyncing: isConnecting, isConnected, metrics, connectDevice: connectBottle, disconnectDevice: disconnectBottle, forceSync: syncData } = props.smartBottle;
+  const { isSyncing: isConnecting, isConnected, metrics, connectDevice: connectBottle, disconnectDevice: disconnectBottle } = props.smartBottle;
   const batteryLevel = metrics?.batteryLevel || 0;
   // Lấy dữ liệu bình trực tiếp từ Hook đã đồng bộ
   const equippedBottle = props.smartBottle.equippedBottle;
@@ -408,14 +408,9 @@ const HomeTab = (props: HomeTabProps) => {
         </div>
         <div>
           {isConnected ? (
-            <div className="flex gap-2">
-              <button onClick={syncData} className="w-10 h-10 rounded-xl bg-cyan-500/10 border border-cyan-500/20 text-cyan-500 dark:text-cyan-400 hover:bg-cyan-500/20 active:scale-95 transition-all flex items-center justify-center">
-                <RefreshCw size={16} />
-              </button>
-              <button onClick={disconnectBottle} className="w-10 h-10 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-500 dark:text-rose-400 hover:bg-rose-500/20 active:scale-95 transition-all flex items-center justify-center">
-                <LogOut size={16} />
-              </button>
-            </div>
+            <button onClick={disconnectBottle} className="w-10 h-10 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-500 dark:text-rose-400 hover:bg-rose-500/20 active:scale-95 transition-all flex items-center justify-center">
+              <LogOut size={16} />
+            </button>
           ) : (
             <button onClick={connectBottle} disabled={isConnecting} className="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-white text-xs font-bold active:scale-95 transition-all disabled:opacity-50">
               {isConnecting ? 'Đang quét...' : 'Kết nối'}
