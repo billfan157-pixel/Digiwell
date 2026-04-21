@@ -53,11 +53,9 @@ export default function ProfileTab({
     <div className="animate-in slide-in-from-right duration-300 space-y-5 pb-6">
       <div className="flex justify-between items-start pt-6 pb-4 px-6">
         <div>
-          {/* OVERLINE (Subtitle) */}
           <p className="text-[10px] font-bold tracking-widest text-slate-500 dark:text-slate-400 uppercase mb-1">
             THÔNG TIN CÁ NHÂN
           </p>
-          {/* MAIN TITLE */}
           <h1 className="text-3xl font-black tracking-tight text-slate-900 dark:text-white">
             Hồ sơ
           </h1>
@@ -77,7 +75,6 @@ export default function ProfileTab({
 
       <div className={`${cardGlow} overflow-hidden`}>
         <div className="relative p-6">
-          {/* CỤM ĐIỂM WP VÀ CỬA HÀNG GÓC PHẢI */}
           <div className="absolute top-6 right-6 flex flex-col items-end gap-2 z-10">
             <div className="flex items-center gap-1.5 bg-emerald-500/15 px-3 py-1.5 rounded-xl border border-emerald-500/30 shadow-[0_0_15px_rgba(16,185,129,0.2)]">
               <Zap size={14} className="text-emerald-400" />
@@ -132,13 +129,12 @@ export default function ProfileTab({
                 <div className="text-center"><p className="text-slate-800 dark:text-white font-black text-sm">{wp}</p><p className="text-slate-500 text-[9px] uppercase font-bold tracking-widest mt-0.5">Điểm WP</p></div>
               </div>
 
-              {/* THANH EXP / CẤP ĐỘ */}
               <div className="mt-5">
                 {(() => {
                   const currentLevel = profile?.level || 1;
                   const totalExp = profile?.total_exp || 0;
-                  const currentLevelExp = totalExpForLevel(currentLevel - 1); // EXP đã tích lũy đến level trước
-                  const progressExp = totalExp - currentLevelExp; // EXP trong level hiện tại
+                  const currentLevelExp = totalExpForLevel(currentLevel - 1);
+                  const progressExp = totalExp - currentLevelExp;
                   const requiredExp = expRequiredForLevel(currentLevel);
                   const progressPercent = Math.min((progressExp / requiredExp) * 100, 100);
 
@@ -146,24 +142,21 @@ export default function ProfileTab({
                     <>
                       <div className="flex justify-between items-end mb-1.5">
                         <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Tiến độ cấp độ</span>
-                        <span className="text-xs font-black text-cyan-500 dark:text-cyan-400">LV.{currentLevel} <span className="text-slate-500 text-[10px] font-mono">({progressExp}/{requiredExp})</span></span>
+                        <span className="text-xs font-black text-cyan-500 dark:text-cyan-400">
+                          LV.{currentLevel} <span className="text-slate-500 text-[10px] font-mono">({progressExp}/{requiredExp})</span>
+                        </span>
                       </div>
-                        <div className="h-2 w-full bg-slate-300 dark:bg-slate-800 rounded-full overflow-hidden border border-slate-300 dark:border-slate-700/50">
-                          <div
-                            className="h-full bg-gradient-to-r from-cyan-500 to-blue-500 rounded-full transition-all duration-1000 relative"
-                            style={{ width: `${progressPercent}%` }}
-                          >
-                            <div className="absolute inset-0 bg-white/20 animate-[shimmer_1.5s_infinite] -skew-x-12" />
-                          </div>
+                      <div className="h-2 w-full bg-slate-300 dark:bg-slate-800 rounded-full overflow-hidden border border-slate-300 dark:border-slate-700/50">
+                        <div
+                          className="h-full bg-gradient-to-r from-cyan-500 to-blue-500 rounded-full transition-all duration-1000 relative"
+                          style={{ width: `${progressPercent}%` }}
+                        >
+                          <div className="absolute inset-0 bg-white/20 animate-[shimmer_1.5s_infinite] -skew-x-12" />
                         </div>
                       </div>
                     </>
                   );
                 })()}
-              </div>
-                    <div className="absolute inset-0 bg-white/20 animate-[shimmer_1.5s_infinite] -skew-x-12" />
-                  </div>
-                </div>
               </div>
             </div>
           </div>
@@ -174,7 +167,6 @@ export default function ProfileTab({
         </div>
       </div>
 
-      {/* TAB SWITCHER */}
       <div className="flex border-b border-white/10 mb-4 px-2">
         <button
           onClick={() => setActiveView('stats')}
@@ -263,36 +255,33 @@ export default function ProfileTab({
                   <p className={`text-base font-black truncate ${currentRank.color}`}>{currentRank.name}</p>
                 </div>
               </div>
-          </div>
-        </div>
-
-        <div className={`${card} p-5`}>
-          <button 
-            className={`w-full flex items-center justify-between p-4 ${card} active:scale-[0.98] transition-all`}
-            onClick={() => setShowProfileSettings(true)}
-          >
-            <div className="flex items-center gap-4">
-              <div className="w-10 h-10 rounded-xl bg-rose-500/10 flex items-center justify-center text-rose-400">
-                <Heart size={20} />
-              </div>
-              <div className="text-left">
-                <p className="text-sm font-bold text-slate-800 dark:text-white">Apple Health / Google Fit</p>
-                <p className="text-[10px] text-slate-500">Mở Cài đặt để đồng bộ</p>
-              </div>
             </div>
-          </button>
-        </div>
+          </div>
 
+          <div className={`${card} p-5`}>
+            <button
+              className={`w-full flex items-center justify-between p-4 ${card} active:scale-[0.98] transition-all`}
+              onClick={() => setShowProfileSettings(true)}
+            >
+              <div className="flex items-center gap-4">
+                <div className="w-10 h-10 rounded-xl bg-rose-500/10 flex items-center justify-center text-rose-400">
+                  <Heart size={20} />
+                </div>
+                <div className="text-left">
+                  <p className="text-sm font-bold text-slate-800 dark:text-white">Apple Health / Google Fit</p>
+                  <p className="text-[10px] text-slate-500">Mở Cài đặt để đồng bộ</p>
+                </div>
+              </div>
+            </button>
+          </div>
 
+          {profile?.id && <BadgesGrid userId={profile.id} />}
 
-      {/* HUY HIỆU (DYNAMIC) */}
-      {profile?.id && <BadgesGrid userId={profile.id} />}
-
-      <div className="rounded-2xl border border-red-500/20 bg-red-500/5 p-4 mt-2">
-        <button onClick={handleLogout} className="w-full py-4 rounded-full border border-red-500/30 text-red-400 text-sm font-bold bg-red-500/10 active:scale-95 transition-all flex items-center justify-center gap-2 hover:bg-red-500/20">
-          <Lock size={18} /> Đăng xuất tài khoản
-        </button>
-      </div>
+          <div className="rounded-2xl border border-red-500/20 bg-red-500/5 p-4 mt-2">
+            <button onClick={handleLogout} className="w-full py-4 rounded-full border border-red-500/30 text-red-400 text-sm font-bold bg-red-500/10 active:scale-95 transition-all flex items-center justify-center gap-2 hover:bg-red-500/20">
+              <Lock size={18} /> Đăng xuất tài khoản
+            </button>
+          </div>
         </>
       )}
 
