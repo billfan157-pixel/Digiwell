@@ -70,37 +70,7 @@ export default function ProfileTab({
     }
   };
 
-  // Function để sync profile data từ backend
-  const syncProfileData = async () => {
-    if (!profile?.id) return;
 
-    try {
-      const { data: freshProfile, error } = await supabase
-        .from('profiles')
-        .select('id, total_exp, water_today, total_water, water_goal, coins, wp')
-        .eq('id', profile.id)
-        .single();
-
-      if (error) throw error;
-
-      // Calculate level from total_exp
-      const calculatedLevel = levelFromExp(freshProfile.total_exp || 0);
-
-      // Update local state với data từ backend + calculated level
-      setProfile({
-        ...freshProfile,
-        level: calculatedLevel
-      });
-
-      toast.success('✅ Đã sync data từ backend!');
-
-      // Log để debug
-      console.log('Synced profile:', { ...freshProfile, level: calculatedLevel });
-    } catch (error: any) {
-      console.error('Sync profile error:', error);
-      toast.error('❌ Lỗi sync data: ' + error.message);
-    }
-  };
 
   return <div className="animate-in slide-in-from-right duration-300 space-y-5 pb-6">
     <div className="flex justify-between items-start pt-6 pb-4 px-6">
@@ -301,15 +271,10 @@ export default function ProfileTab({
 
           {/* DEBUG: Admin Tools (chỉ hiện khi development) */}
           {process.env.NODE_ENV === 'development' && (
-            <div className="space-y-3 mt-4">
+            <div className="mt-4">
               <div className="rounded-2xl border border-blue-500/20 bg-blue-500/5 p-4">
                 <button onClick={recalculateLevel} className="w-full py-4 rounded-full border border-blue-500/30 text-blue-400 text-sm font-bold bg-blue-500/10 active:scale-95 transition-all flex items-center justify-center gap-2 hover:bg-blue-500/20">
                   🔄 Cập nhật Level
-                </button>
-              </div>
-              <div className="rounded-2xl border border-green-500/20 bg-green-500/5 p-4">
-                <button onClick={syncProfileData} className="w-full py-4 rounded-full border border-green-500/30 text-green-400 text-sm font-bold bg-green-500/10 active:scale-95 transition-all flex items-center justify-center gap-2 hover:bg-green-500/20">
-                  🔄 Sync Profile Data
                 </button>
               </div>
             </div>
