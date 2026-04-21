@@ -99,13 +99,7 @@ export default function InsightTab({
 
   const completionRate = weeklyChartData.length === 0 ? 0 : Math.round((stats.completed / weeklyChartData.length) * 100);
 
-  const breakdownData = hydrationResult ? {
-    base: hydrationResult.breakdown.base + hydrationResult.breakdown.ageAdj + hydrationResult.breakdown.genderAdj,
-    weatherExtra: hydrationResult.breakdown.climateAdj,
-    workoutExtra: hydrationResult.breakdown.exerciseAdj + hydrationResult.breakdown.activityAdj,
-    fastingExtra: hydrationResult.breakdown.foodWaterAdj,
-    total: hydrationResult.goalMl
-  } : null;
+  const breakdownData = hydrationResult?.breakdown ?? null;
 
   return (
     <div className="space-y-6 pb-28 animate-in fade-in slide-in-from-bottom-5 duration-700">
@@ -113,8 +107,8 @@ export default function InsightTab({
       {/* --- PHẦN TIÊU ĐỀ --- */}
       <div className="flex justify-between items-start pt-6 pb-4 px-6">
         <div>
-          <h1 className="text-3xl font-black tracking-tighter text-slate-50">Insight</h1>
-          <p className="text-[10px] font-mono text-slate-500 tracking-wider mt-1 uppercase">Neural Analytics V3.5</p>
+          <p className="text-[10px] font-bold tracking-widest text-slate-400 uppercase mb-1">PHÂN TÍCH CHUYÊN SÂU</p>
+          <h1 className="text-3xl font-black tracking-tight text-white">Insight</h1>
         </div>
         <div className="flex items-center gap-3">
           <button 

@@ -1,14 +1,14 @@
 import React, { useMemo, useState } from 'react';
 import { motion, AnimatePresence, type Variants } from 'framer-motion';
-import { Gift, Zap, CheckCircle2, Loader2, Sparkles, Flame, Star, Info, Volume2 } from 'lucide-react';
-import type { Quest } from '@/QuestPage'; // Đảm bảo type Quest có đủ base_exp, final_exp,...
+import { Gift, Zap, CheckCircle2, Loader2, Sparkles, Flame, Star, Info, Volume2, Award } from 'lucide-react';
 
 import type { UserQuest } from '../config/questConfig';
 
 interface QuestCardProps {
   userQuest: UserQuest;
-  onClaim: (id: string) => void;
+  onClaim: (id: string) => void | Promise<void>;
   isClaiming?: boolean;
+  streak?: number;
 }
 
 const rarityStyle: Record<string, { border: string; bg: string; shadow: string }> = {
@@ -44,7 +44,7 @@ const burstVariants: Variants = {
   },
 };
 
-export const QuestCard: React.FC<QuestCardProps> = ({ userQuest, onClaim, isClaiming = false }) => {
+export const QuestCard: React.FC<QuestCardProps> = ({ userQuest, onClaim, isClaiming = false, streak = 0 }) => {
   const [showBurst, setShowBurst] = useState(false);
   const [floatingText, setFloatingText] = useState<string | null>(null);
   const [showBreakdown, setShowBreakdown] = useState(false);
@@ -153,9 +153,20 @@ export const QuestCard: React.FC<QuestCardProps> = ({ userQuest, onClaim, isClai
       {/* HEADER */}
       <div className="flex justify-between items-start gap-4 relative z-10">
         <div className="pr-3">
-          <h3 className={`font-bold text-base ${isClaimed ? 'text-slate-400' : 'text-white'}`}>
-            {userQuest.quest.title}
-          </h3>
+          <div className="flex items-center gap-2 mb-1">
+            <h3 className={`font-bold text-base ${isClaimed ? 'text-slate-400' : 'text-white'}`}>
+              {userQuest.quest.title}
+            </h3>
+            {(userQuest.quest as any).type === 'weekly' && (
+              <span className="px-2 py-0.5 rounded text-[8px] font-black bg-purple-500/20 text-purple-400 uppercase tracking-widest border border-purple-500/30">Tuần</span>
+            )}
+            {(userQuest.quest as any).type === 'daily' && (
+              <span className="px-2 py-0.5 rounded text-[8px] font-black bg-cyan-500/20 text-cyan-400 uppercase tracking-widest border border-cyan-500/30">Ngày</span>
+            )}
+            {(userQuest.quest as any).type === 'level' && (
+              <span className="px-2 py-0.5 rounded text-[8px] font-black bg-amber-500/20 text-amber-400 uppercase tracking-widest border border-amber-500/30">Vĩnh viễn</span>
+            )}
+          </div>
           <p className="text-slate-400 text-xs mt-1">
             {userQuest.quest.description}
           </p>
@@ -201,6 +212,11 @@ export const QuestCard: React.FC<QuestCardProps> = ({ userQuest, onClaim, isClai
               <Zap size={12} /> +{finalWp} WP
             </div>
           </div>
+          {(userQuest.quest as any).reward_badge_id && (
+            <div className={`flex items-center justify-end gap-1 text-[10px] font-bold mt-1 ${isClaimed ? 'text-slate-600' : 'text-fuchsia-400'}`}>
+              <Award size={12} /> +Huy hiệu
+            </div>
+          )}
 
           {/* 🔍 THE BREAKDOWN PREVIEW (Tooltip) */}
           <AnimatePresence>
@@ -273,7 +289,7 @@ export const QuestCard: React.FC<QuestCardProps> = ({ userQuest, onClaim, isClai
                 : 'bg-cyan-500'
             }`}
           >
-            {quest.is_completed && <div className="absolute inset-0 bg-white/20 animate-[shimmer_1s_infinite] -skew-x-12" />}
+            {userQuest.status === 'completed' && <div className="absolute inset-0 bg-white/20 animate-[shimmer_1s_infinite] -skew-x-12" />}
           </motion.div>
         </div>
       </div>

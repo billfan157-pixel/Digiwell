@@ -14,7 +14,7 @@ export function useAppSystem() {
 
   const { isWeatherSynced, setIsWeatherSynced, weatherData, syncWeather } = useWeatherSync();
   const { isCalendarSynced, setIsCalendarSynced, calendarEvents, syncCalendar } = useCalendarSync();
-  const { isWatchConnected, setIsWatchConnected, watchData } = useDeviceHealth();
+  const { isWatchConnected, toggleHealthConnection, watchData, isLoading: isHealthLoading } = useDeviceHealth(profile?.id);
 
   const loadProfileForCurrentUser = async () => {
     try {
@@ -112,5 +112,5 @@ export function useAppSystem() {
 
   const handleLogout = async () => { if (window.confirm("Xác nhận đăng xuất an toàn?")) { await supabase!.auth.signOut(); } };
 
-  return { view, setView, profile, setProfile, loginPrefill, setLoginPrefill, handleLogout, isWeatherSynced, setIsWeatherSynced, weatherData, syncWeather, isCalendarSynced, setIsCalendarSynced, calendarEvents, syncCalendar, isWatchConnected, setIsWatchConnected, watchData };
+  return { view, setView, profile, setProfile, loginPrefill, setLoginPrefill, handleLogout, isWeatherSynced, setIsWeatherSynced, weatherData, syncWeather, isCalendarSynced, setIsCalendarSynced, calendarEvents, syncCalendar, isWatchConnected, toggleHealthConnection, watchData, isHealthLoading };
 }

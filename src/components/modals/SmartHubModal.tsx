@@ -19,7 +19,7 @@ interface SmartHubModalProps {
   isCalendarSynced: boolean;
   calendarEvents: any[];
   isWatchConnected: boolean;
-  setIsWatchConnected: (connected: boolean) => void;
+  toggleHealthConnection: () => void;
   watchData: { heartRate: number; steps: number };
   currentActivity: 'chill' | 'light' | 'hard';
   setCurrentActivity: (activity: 'chill' | 'light' | 'hard') => void;
@@ -36,7 +36,7 @@ interface SmartHubModalProps {
 export default function SmartHubModal({
   showSmartHub, setShowSmartHub, reminderSettings, isReminderPermissionGranted, updateReminderSetting,
   reminderPreview, handleApplyReminderSettings, isApplyingReminderSettings, isWeatherSynced,
-  weatherData, syncWeather, isCalendarSynced, calendarEvents, isWatchConnected, setIsWatchConnected,
+  weatherData, syncWeather, isCalendarSynced, calendarEvents, isWatchConnected, toggleHealthConnection,
   watchData, currentActivity, setCurrentActivity, isFastingMode, toggleFastingMode, fastingHours,
   fastingMinutes, fastingSeconds, fastingRemaining, isPremium, setShowPremiumModal
 }: SmartHubModalProps) {

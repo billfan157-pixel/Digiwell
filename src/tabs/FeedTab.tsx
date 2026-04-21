@@ -206,7 +206,7 @@ export const PostCard = memo(({ post, currentUserId, handleToggleLikePost, onOpe
             <div className="mt-4 flex gap-3">
                <button 
                   onClick={() => toast.success('Đã tham gia thử thách! Cùng cố gắng nhé! 🚀')}
-                  className="flex-1 bg-purple-500 text-white font-bold py-2.5 rounded-xl hover:bg-purple-400 active:scale-95 transition-all shadow-[0_0_15px_rgba(168,85,247,0.4)]">
+                  className="flex-1 bg-white text-purple-900 font-black py-2.5 rounded-xl hover:bg-slate-100 active:scale-95 transition-all shadow-[0_0_20px_rgba(168,85,247,0.4)]">
                   Tham gia ngay
                </button>
             </div>
@@ -483,9 +483,12 @@ export default function FeedTab({
       {/* Header */}
       <div className="sticky top-0 z-30 flex flex-col pt-8 pb-3 px-6 bg-slate-950/90 backdrop-blur-xl border-b border-white/5">
         <div className="flex justify-between items-center mb-4">
-            <h1 className="text-2xl font-black text-white flex items-center gap-2">
-               Cộng đồng <span className="px-2 py-0.5 rounded-md bg-cyan-500/20 text-cyan-400 text-[10px] uppercase tracking-widest border border-cyan-500/30">Live</span>
-            </h1>
+            <div>
+              <p className="text-[10px] font-bold tracking-widest text-slate-400 uppercase mb-1">TRẠM PHÁT TIN</p>
+              <h1 className="text-3xl font-black tracking-tight text-white flex items-center gap-2">
+                 Cộng đồng <span className="px-2 py-0.5 rounded-md bg-cyan-500/20 text-cyan-400 text-[10px] font-black uppercase tracking-widest border border-cyan-500/30 shadow-[0_0_10px_rgba(6,182,212,0.3)]">Live</span>
+              </h1>
+            </div>
             <div className="flex items-center gap-3">
               <button onClick={() => setShowNotifications(true)} className="relative p-2 rounded-full bg-slate-800 border border-slate-700 hover:bg-slate-700 text-slate-300 transition-colors active:scale-95">
                 <Bell size={20} />

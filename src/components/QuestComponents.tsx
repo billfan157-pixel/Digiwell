@@ -9,10 +9,11 @@ import type { UserQuest, UserChallenge, RankTier, Challenge, ChallengeMilestone 
 
 interface QuestCardProps {
   userQuest:  UserQuest;
-  onClaim:    (id: string) => void;
+  onClaim:    (id: string) => void | Promise<void>;
+  isClaiming?: boolean;
 }
 
-export function QuestCard({ userQuest: uq, onClaim }: QuestCardProps) {
+export function QuestCard({ userQuest: uq, onClaim, isClaiming = false }: QuestCardProps) {
   const q           = uq.quest;
   const progress    = uq.progress;
   const target      = q.condition_value;
@@ -142,12 +143,11 @@ export function QuestCard({ userQuest: uq, onClaim }: QuestCardProps) {
       {/* Action buttons */}
       {isCompleted && !isClaimed && (
         <button
+          disabled={isClaiming}
           onClick={() => onClaim(uq.id)}
-          className="w-full py-3 rounded-xl bg-gradient-to-r from-green-500 to-green-600 text-white font-bold text-sm
-                     hover:from-green-400 hover:to-green-500 active:scale-95 transition-all duration-200
-                     shadow-lg shadow-green-500/30 hover:shadow-green-500/50"
+          className={`w-full py-3 rounded-xl bg-gradient-to-r from-green-500 to-green-600 text-white font-bold text-sm hover:from-green-400 hover:to-green-500 active:scale-95 transition-all duration-200 shadow-lg shadow-green-500/30 hover:shadow-green-500/50 ${isClaiming ? 'opacity-50 cursor-not-allowed' : ''}`}
         >
-          🎁 Nhận thưởng ngay
+          {isClaiming ? '⏳ Đang nhận...' : '🎁 Nhận thưởng ngay'}
         </button>
       )}
 

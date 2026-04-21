@@ -22,7 +22,6 @@ import { runQuestEngine, runChallengeEngine, type QuestEngineContext } from '@/l
 // @ts-ignore
 import confetti from 'canvas-confetti';
 import { AnimatePresence } from 'framer-motion';
-import QuestPage from './QuestPage';
 
 import WelcomeScreen from '@/WelcomeScreen';
 import LoginScreen from '@/LoginScreen';
@@ -33,7 +32,7 @@ import FeedTab from '@/tabs/FeedTab';
 import ProfileTab from '@/tabs/ProfileTab';
 import InsightTab from '@/tabs/InsightTab';
 import LeagueTab from '@/tabs/LeagueTab';
-import { ArenaTab } from '@/tabs/ArenaTab'; // Import ArenaTab
+import BottleTab from '@/components/BottleTab';
 
 import GlobalModalManager from '@/components/modals/GlobalModalManager';
 import SettingsModal from '@/components/modals/SettingsModal';
@@ -46,6 +45,7 @@ import { useStreak } from '@/hooks/useStreak';
 import { useFeed } from '@/hooks/useFeed';
 import { useUIStore } from '@/store/useUIStore';
 import { useReminderStore, getReminderPreview, type HydrationReminderSettings } from '@/store/useReminderStore';
+import { useSmartBottle } from '@/hooks/useSmartBottle';
 import { useDrinkPresetStore } from '@/store/useDrinkPresetStore';
 import { calculateWP, getRankInfo } from '@/utils/healthMath';
 import { playSuccessSound } from '@/lib/audio';
@@ -56,39 +56,12 @@ import { calculateWaterIntake, type ActivityLevel, type Gender, type Climate } f
 import OnboardingModal from '@/components/OnboardingModal';
 import LevelUpModal from '@/components/clubs/LevelUpModal';
 import ShopModal from '@/components/modals/ShopModal';
-
-// ============================================================================
-// COMPONENT: MÀN HÌNH KHÓA SINH TRẮC HỌC
-// ============================================================================
-function LockedScreen({ profile, onUnlock, onLogout }: any) {
-  const { authenticateBiometric, isAuthenticating } = useBiometric();
-  
-  useEffect(() => { handleUnlock(); }, []); // Tự động bật popup sinh trắc học khi mount
-
-  const handleUnlock = async () => {
-    if (!profile?.id) return;
-    const success = await authenticateBiometric(profile.id);
-    if (success) onUnlock();
-  };
-
-  return (
-    <div className="flex flex-col min-h-screen items-center justify-center bg-slate-950 text-white p-6 font-sans">
-      <div className="w-20 h-20 bg-cyan-500/20 rounded-full flex items-center justify-center mb-6 border border-cyan-500/30">
-        <Lock size={32} className="text-cyan-400" />
-      </div>
-      <h2 className="text-2xl font-black mb-2">Đã khóa ứng dụng</h2>
-      <p className="text-slate-400 mb-8 text-center text-sm">
-        DigiWell được bảo vệ bằng Sinh trắc học.<br/>Vui lòng xác thực để tiếp tục.
-      </p>
-      <button onClick={handleUnlock} disabled={isAuthenticating} className="w-full max-w-xs py-4 rounded-2xl bg-cyan-500 text-black font-bold mb-4 shadow-[0_0_20px_rgba(6,182,212,0.4)] disabled:opacity-50 active:scale-95 transition-all">
-        {isAuthenticating ? 'Đang xác thực...' : 'Mở khóa bằng Sinh trắc học'}
-      </button>
-      <button onClick={onLogout} className="text-slate-500 hover:text-white transition-colors text-sm font-medium">
-        Đăng nhập bằng tài khoản khác
-      </button>
-    </div>
-  );
-}
+import QuestModal from '@/components/modals/QuestModal';
+import EditEntryModal from '@/components/modals/EditEntryModal';
+import { useSettings } from '@/hooks/useSettings';
+import ThemeEngine from '@/components/ThemeEngine';
+import LockedScreen from '@/components/LockedScreen';
+import { exportHealthReportPDF } from '@/lib/pdfExport';
 
 // ============================================================================
 // DIGIWELL SMART WELLNESS - PREMIUM DARK UI (V7 FIXED)
@@ -105,11 +78,18 @@ function AppContent() {
   // ==========================================================================
   // [1] QUẢN LÝ TRẠNG THÁI (STATES)
   // ==========================================================================
+  const latestStatsRef = useRef({
+    streak: 0,
+    logCountToday: 0,
+    weeklyDays: 0,
+    waterIntake: 0
+  });
+
   const {
     view = 'welcome', setView = () => {}, profile = null, setProfile = () => {}, loginPrefill = '', setLoginPrefill = () => {}, handleLogout = async () => {},
     isWeatherSynced = false, setIsWeatherSynced = () => {}, weatherData, syncWeather = async () => {},
     isCalendarSynced = false, setIsCalendarSynced = () => {}, calendarEvents = [], syncCalendar = async () => {},
-    isWatchConnected = false, setIsWatchConnected = () => {}, watchData
+    isWatchConnected = false, toggleHealthConnection = async () => {}, watchData
   } = useAppSystem() || {};
 
   // State cho demo thuật toán thủ công khi chưa kết nối thiết bị
@@ -148,22 +128,33 @@ function AppContent() {
     const genderMap: Record<string, Gender> = { 'Nam': 'male', 'Nữ': 'female' };
     const mappedGender = genderMap[profile.gender] || 'other';
 
-    // Map activity from Vietnamese DB format to English literal types
-    const mappedActivity = (profile.activity === 'sedentary' || profile.activity === 'light' || profile.activity === 'moderate' || profile.activity === 'high' || profile.activity === 'athlete') ? profile.activity : 'moderate';
+    // FIX: Thêm bước kiểm tra để đảm bảo giá trị `activity` từ DB luôn hợp lệ,
+    // phòng trường hợp dữ liệu cũ không khớp với enum mới.
+    const validActivities: ActivityLevel[] = ['sedentary', 'light', 'moderate', 'high', 'athlete'];
+    const mappedActivity = validActivities.includes(profile.activity) ? profile.activity as ActivityLevel : 'moderate';
+
+    // FIX: Tương tự, kiểm tra `climate` để đảm bảo giá trị hợp lệ.
+    // Dữ liệu cũ có thể là tiếng Việt, gây lỗi khi truy cập `climateMap`.
+    const validClimates: Climate[] = ['cold', 'temperate', 'warm', 'hot', 'tropical'];
+    const mappedClimate = validClimates.includes(profile.climate) ? profile.climate as Climate : 'temperate';
 
     return calculateWaterIntake({
       weightKg: profile.weight || 60,
       heightCm: profile.height || 170,
       ageYears: profile.age || 20,
       gender: mappedGender,
-      activityLevel: mappedActivity as ActivityLevel,
-      climate: 'temperate', // Defaulting for now, as currentTempC will override it anyway
+      activityLevel: mappedActivity,
+      climate: mappedClimate,
       healthCondition: 'none',
       dietFactors: [],
       currentTempC: isWeatherSynced ? weatherData?.temp : undefined,
-      // FIX: watchData only has `steps`. Estimate minutes from steps (e.g., 100 steps/min).
-      exerciseMinutes: isWatchConnected ? Math.round((watchData?.steps || 0) / 100) : 0,
-      isFasting: isFastingMode // Using the existing fasting state!
+      // Ước tính số phút tập luyện từ số bước chân.
+      // Giả định tốc độ đi bộ trung bình là ~120 bước/phút.
+      // TODO: Nâng cấp để lấy trực tiếp "workoutMinutes" từ HealthKit/Google Fit để có độ chính xác cao nhất.
+      exerciseMinutes: isWatchConnected ? Math.round((watchData?.steps || 0) / 120) : 0,
+      isFasting: isFastingMode,
+      wakeUpTime: profile.wakeUp || '07:00',
+      bedTime: profile.bedTime || '23:00',
     });
   }, [profile, weatherData, isWeatherSynced, watchData, isWatchConnected, isFastingMode]);
 
@@ -202,9 +193,12 @@ function AppContent() {
 
   // State cho Chat AI Premium
   const [showShopModal, setShowShopModal] = useState(false);
+  const [showQuestModal, setShowQuestModal] = useState(false);
   const [weeklyReport, setWeeklyReport] = useState<HealthReport | null>(null);
   const [levelUpInfo, setLevelUpInfo] = useState({ from: 0, to: 0 });
   const [isWeeklyReportLoading, setIsWeeklyReportLoading] = useState(false);
+
+  const smartBottle = useSmartBottle(profile?.id, 'DW-PRO-1', 750);
 
   // ==========================================================================
   // [NEW] PREMIUM FEATURES STATES
@@ -462,14 +456,15 @@ function AppContent() {
             toast.error('Cập nhật profile thất bại');
           } else {
             // Run quest engine after successful profile update
+            const stats = latestStatsRef.current;
             const questCtx: QuestEngineContext = {
               userId: currentProfile.id,
-              waterToday: (currentProfile.water_today || 0) + optimisticAmount,
+              waterToday: stats.waterIntake + (optimisticAmount || 0),
               waterGoal: currentProfile.water_goal || 2000,
-              streak: 0, // We'll calculate this properly later
-              totalWater: (currentProfile.total_water || 0) + optimisticAmount,
-              logCountToday: 1, // Approximate
-              weeklyDays: 1, // Approximate
+              streak: stats.streak,
+              totalWater: (currentProfile.total_water || 0) + (optimisticAmount || 0),
+              logCountToday: stats.logCountToday + (optimisticAmount && optimisticAmount > 0 ? 1 : 0),
+              weeklyDays: stats.weeklyDays,
             };
             runQuestEngine(questCtx);
           }
@@ -488,21 +483,59 @@ function AppContent() {
     if (newCoins < 0) return false;
     
     setProfile((prev: any) => ({ ...prev, coins: newCoins })); // UI Update nhanh
-    const { error } = await supabase.from('profiles').update({ coins: newCoins }).eq('id', profile.id);
-    
-    if (error) {
-      toast.error("Lỗi đồng bộ tiền vàng!");
-      setProfile((prev: any) => ({ ...prev, coins: prev.coins + amount })); // Lỗi thì trả lại
-      return false;
-    }
+    // Việc trừ tiền thật trên DB sẽ do RPC purchase_item trong ShopModal đảm nhận để tránh trừ 2 lần
     return true;
   };
 
   const {
     waterIntake = 0, waterEntries = [], handleAddWater = async () => {}, handleDeleteEntry = async () => {},
-    handleEditEntry = async () => {}, editingEntry = null, setEditingEntry = () => {}, editAmount = 0,
-    setEditAmount = () => {}, hasPendingCloudSync = false, isSyncing = false
+    handleEditEntry = async () => {}, hasPendingCloudSync = false, isSyncing = false, refetchWater = async () => {}
   } = useWaterData(profile, handleWaterSync) || {};
+
+  const [editingEntry, setEditingEntry] = useState<any>(null);
+  const [editAmount, setEditAmount] = useState<string | number>('');
+
+  useEffect(() => {
+    const handleSmartBottleHydration = (event: Event) => {
+      const customEvent = event as CustomEvent<{
+        amount_ml?: number;
+        new_total_exp?: number;
+        new_coins?: number;
+        refresh_profile?: boolean;
+        refresh_water?: boolean;
+      }>;
+
+      const { amount_ml = 0, new_total_exp, new_coins, refresh_profile, refresh_water } = customEvent.detail || {};
+
+      if (new_total_exp !== undefined || new_coins !== undefined || amount_ml > 0) {
+        setProfile((prev: any) => {
+          if (!prev) return prev;
+
+          return {
+            ...prev,
+            total_exp: new_total_exp ?? prev.total_exp,
+            coins: new_coins ?? prev.coins,
+            water_today: amount_ml > 0 ? (prev.water_today || 0) + amount_ml : prev.water_today,
+            total_water: amount_ml > 0 ? (prev.total_water || 0) + amount_ml : prev.total_water,
+          };
+        });
+      }
+
+      if (refresh_profile !== false) {
+        void refetchProfile();
+      }
+
+      if (refresh_water !== false) {
+        void refetchWater();
+      }
+    };
+
+    window.addEventListener('hydrationEvent', handleSmartBottleHydration);
+
+    return () => {
+      window.removeEventListener('hydrationEvent', handleSmartBottleHydration);
+    };
+  }, [refetchProfile, refetchWater, setProfile]);
 
   // GAMIFICATION: Level Up Effect
   useEffect(() => {
@@ -615,12 +648,33 @@ function AppContent() {
 
     const assignQuestsIfNeeded = async () => {
       const todayStr = new Date().toISOString().split('T')[0];
-      const lastCheckKey = `daily_quest_check_${profile.id}`;
+      const lastCheckKey = `daily_quest_check_v3_${profile.id}`;
       const lastCheckDate = localStorage.getItem(lastCheckKey);
 
       if (lastCheckDate !== todayStr) {
         try {
           await supabase.rpc('assign_daily_quests', { p_user_id: profile.id });
+            
+            // [FIX] Tự động gán các nhiệm vụ Tuần (weekly) và Thành tựu (level) nếu user chưa có
+            const { data: allQuests } = await supabase.from('quests').select('id, type').in('type', ['weekly', 'level']);
+            const { data: myQuests } = await supabase.from('user_quests').select('quest_id').eq('user_id', profile.id);
+            
+            if (allQuests && myQuests) {
+              const myQuestIds = new Set(myQuests.map((q: any) => q.quest_id));
+              const missing = allQuests.filter((q: any) => !myQuestIds.has(q.id));
+              
+              if (missing.length > 0) {
+                await supabase.from('user_quests').insert(
+                  missing.map((q: any) => ({
+                    user_id: profile.id,
+                    quest_id: q.id,
+                    progress: 0,
+                    status: 'active'
+                  }))
+                );
+              }
+            }
+
           localStorage.setItem(lastCheckKey, todayStr);
         } catch (err) {
           console.error('Lỗi khi gán nhiệm vụ hàng ngày:', err);
@@ -665,7 +719,6 @@ function AppContent() {
   useEffect(() => {
     if (profile?.id && profile.id !== 'undefined') {
       const prefs = JSON.parse(localStorage.getItem(`digiwell_prefs_${profile.id}`) || '{}');
-      setIsWatchConnected(!!prefs.watch);
       setIsWeatherSynced(!!prefs.weather);
       setIsCalendarSynced(!!prefs.calendar);
       loadReminderSettings(profile.id);
@@ -875,9 +928,42 @@ function AppContent() {
 
   const { streak, streakFreezes, needsFreeze, useStreakFreeze } = useStreak(profile?.id, waterGoal, waterIntake, isPremium);
 
+  // Update latestStatsRef with current values
+  useEffect(() => {
+    latestStatsRef.current = {
+      streak,
+      logCountToday: waterEntries.length,
+      // FIX: Tính đúng số ngày hoàn thành mục tiêu trong tuần
+      weeklyDays: weeklyHistory.filter(h => h.ml >= waterGoal).length,
+      waterIntake
+    };
+  }, [streak, waterEntries.length, weeklyHistory, waterIntake, waterGoal]);
+
   const socialProps = useSocialData({ profile, waterIntake, waterGoal, streak, activeTab, setActiveTab }) || {};
   const { openSocialComposer = () => {} } = socialProps;
   const { posts } = useFeed(profile?.id);
+
+  // [NEW] Centralized Quest Engine Runner
+  // Chạy mỗi khi các chỉ số quan trọng thay đổi (uống nước, đổi ngày,...)
+  useEffect(() => {
+    // Chỉ chạy khi đã có profile và hoàn thành onboarding
+    if (!profile?.id || !profile.onboarding_completed) return;
+
+    const questCtx: QuestEngineContext = {
+      userId: profile.id,
+      waterToday: waterIntake,
+      waterGoal: waterGoal,
+      streak: streak,
+      totalWater: profile.total_water || 0,
+      logCountToday: waterEntries.length,
+      weeklyDays: latestStatsRef.current.weeklyDays,
+    };
+
+    // Chạy ngầm, không cần await để block UI
+    runQuestEngine(questCtx);
+    runChallengeEngine(questCtx);
+
+  }, [waterIntake, streak, waterGoal, profile?.id, profile?.total_water, profile?.onboarding_completed, waterEntries.length]);
 
   // Fasting Math
   const fastingElapsed = isFastingMode && fastingStartTime ? now.getTime() - fastingStartTime : 0;
@@ -1037,7 +1123,7 @@ function AppContent() {
       setEditProfileData({
         nickname: profile.nickname || '', gender: profile.gender || 'Nam',
         age: profile.age || 20, height: profile.height || 170, weight: profile.weight || 60,
-        activity: profile.activity || 'active', climate: profile.climate || 'Nhiệt đới (Nóng)', goal: profile.goal || 'Sức khỏe tổng quát'
+        activity: profile.activity || 'sedentary', climate: profile.climate || 'temperate', goal: profile.goal || 'Sức khỏe tổng quát'
       });
       setShowEditProfile(true);
     }
@@ -1134,7 +1220,7 @@ function AppContent() {
   const connectedSystems = [
     { icon: CloudSun, label: 'Trạm thời tiết', sub: 'Đồng bộ tự động qua GPS', active: isWeatherSynced, action: () => syncWeather(profile?.city), activeColor: '#f97316', activeBg: 'rgba(249,115,22,0.2)', activeBorder: 'rgba(249,115,22,0.4)' },
     { icon: Calendar, label: 'Lịch trình thông minh', sub: 'Nhắc nhở theo agenda và giờ học', active: isCalendarSynced, action: syncCalendar, activeColor: '#818cf8', activeBg: 'rgba(99,102,241,0.2)', activeBorder: 'rgba(99,102,241,0.4)' },
-    { icon: Watch, label: 'Watch / HealthKit', sub: 'Nhịp tim và bước chân thời gian thực', active: isWatchConnected, action: () => setIsWatchConnected(!isWatchConnected), activeColor: '#22d3ee', activeBg: 'rgba(6,182,212,0.2)', activeBorder: 'rgba(6,182,212,0.4)' },
+    { icon: Watch, label: 'Watch / HealthKit', sub: 'Nhịp tim và bước chân thời gian thực', active: isWatchConnected, action: toggleHealthConnection, activeColor: '#22d3ee', activeBg: 'rgba(6,182,212,0.2)', activeBorder: 'rgba(6,182,212,0.4)' },
   ];
   const connectedSystemsCount = connectedSystems.filter((item: any) => item.active).length;
   const assistantFace = progress < 30 ? '(;-;)' : progress < 70 ? '(o_o)' : '(^o^)';
@@ -1210,7 +1296,7 @@ function AppContent() {
     editingEntry, editAmount, handleEditEntry,
     showSmartHub, setShowSmartHub, reminderSettings, isReminderPermissionGranted, updateReminderSetting: (key: keyof HydrationReminderSettings, value: any) => updateReminderSetting(key, value),
     reminderPreview, handleApplyReminderSettings: () => handleApplyReminderSettings(profile?.id, waterGoal, profile?.nickname), isApplyingReminderSettings, isWeatherSynced,
-    weatherData, syncWeather, isCalendarSynced, calendarEvents, isWatchConnected, setIsWatchConnected,
+    weatherData, syncWeather, isCalendarSynced, calendarEvents, isWatchConnected, toggleHealthConnection,
     watchData, currentActivity, setCurrentActivity, isFastingMode, toggleFastingMode, fastingHours,
     fastingMinutes, fastingSeconds, fastingRemaining, isPremium, setShowPremiumModal,
     showCustomDrink, setShowCustomDrink, customDrinkForm, setCustomDrinkForm: handleSetCustomDrinkForm, handleAddWater,
@@ -1226,8 +1312,9 @@ function AppContent() {
 
   return (
     <div className="flex flex-col h-screen max-w-md mx-auto relative overflow-hidden font-sans scanline-overlay bg-slate-50 dark:bg-slate-950">
-      <div className="absolute top-[-15%] left-[-20%] w-[70%] h-[50%] bg-cyan-500/15 blur-[120px] pointer-events-none rounded-full" />
-      <div className="absolute bottom-[-10%] right-[-20%] w-[60%] h-[40%] bg-indigo-500/10 blur-[100px] pointer-events-none rounded-full" />
+      <ThemeEngine profile={profile} />
+      <div className="absolute top-[-15%] left-[-20%] w-[70%] h-[50%] bg-cyan-500/15 blur-[120px] pointer-events-none rounded-full transition-colors duration-500" />
+      <div className="absolute bottom-[-10%] right-[-20%] w-[60%] h-[40%] bg-indigo-500/10 blur-[100px] pointer-events-none rounded-full transition-colors duration-500" />
       <input type="file" accept="image/*" capture="environment" ref={fileInputRef} className="hidden" onChange={processImageScan} />
 
       {/* Only show onboarding for users who haven't completed it yet */}
@@ -1270,6 +1357,7 @@ function AppContent() {
              handleAddWater={handleAddWater}
              handleScan={handleScan}
              setShowShopModal={setShowShopModal}
+             setShowQuestModal={setShowQuestModal}
 
              handleLogout={handleLogout}
             setShowSmartHub={setShowSmartHub as any}
@@ -1283,6 +1371,8 @@ function AppContent() {
             weatherData={weatherData}
             watchData={watchData}
             weeklyHistory={weeklyHistory}
+            smartBottle={smartBottle}
+            hydrationResult={hydrationResult}
           />
         )}
 
@@ -1309,20 +1399,15 @@ function AppContent() {
           />
         )}
 
-        {/* ==================== QUEST TAB ==================== */}
-        {activeTab === 'arena' && profile?.id && profile.id !== 'undefined' && (
-          <QuestPage
-            userId={profile.id}
-            onRewardClaimed={(exp, coins) => {
-              // Update profile with rewards
-              setProfile((prev: any) => ({
-                ...prev,
-                total_exp: (prev?.total_exp || 0) + exp,
-                coins: (prev?.coins || 0) + coins,
-                level: Math.floor(((prev?.total_exp || 0) + exp) / 500) + 1
-              }));
-              toast.success(`+${exp} EXP, +${coins} Coins!`);
-            }}
+        {/* ==================== BOTTLE & ARENA TAB ==================== */}
+        {activeTab === 'bottle' && profile?.id && profile.id !== 'undefined' && (
+          <BottleTab
+            profile={profile}
+            weatherData={weatherData}
+            isWeatherSynced={isWeatherSynced}
+            watchData={watchData}
+            isWatchConnected={isWatchConnected}
+            smartBottle={smartBottle}
           />
         )}
         {/* ==================== LEAGUE TAB ==================== */}
@@ -1403,12 +1488,28 @@ function AppContent() {
         onSpendCoins={handleSpendCoins} 
       />
       
+      <QuestModal
+        isOpen={showQuestModal}
+        onClose={() => setShowQuestModal(false)}
+        userId={profile?.id}
+        streak={streak}
+        onRewardClaimed={handleQuestRewardClaimed}
+      />
+      
       <SettingsModal 
         isOpen={showProfileSettings} 
         onClose={() => setShowProfileSettings(false)} 
         profile={profile} 
         setProfile={setProfile} 
         handleLogout={handleLogout} 
+      />
+
+      <EditEntryModal
+        editingEntry={editingEntry}
+        setEditingEntry={setEditingEntry}
+        editAmount={editAmount}
+        setEditAmount={setEditAmount as any}
+        handleEditEntry={handleEditEntry}
       />
     </div>
   );
@@ -1420,16 +1521,16 @@ function AppContent() {
 export default function App() {
   if (!isSupabaseConfigured || !supabase) {
     return (
-      <div className="w-full max-w-md mx-auto min-h-screen p-8 font-sans flex items-center justify-center bg-slate-950 text-white relative shadow-2xl sm:border-x sm:border-slate-800 overflow-x-hidden">
-        <div className="w-full p-8 rounded-[2rem] border border-white/5 bg-slate-900/60 backdrop-blur-xl shadow-xl">
-          <div className="w-14 h-14 bg-red-500/20 rounded-2xl flex items-center justify-center mb-6 border border-red-500/30">
-            <Target size={28} className="text-red-400" />
+      <div className="w-full max-w-md mx-auto min-h-screen p-8 font-sans flex items-center justify-center bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white relative shadow-2xl sm:border-x sm:border-slate-300 dark:sm:border-slate-800 overflow-x-hidden">
+        <div className="w-full p-8 rounded-[2rem] border border-slate-300 dark:border-white/5 bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl shadow-xl">
+          <div className="w-14 h-14 bg-red-500/10 dark:bg-red-500/20 rounded-2xl flex items-center justify-center mb-6 border border-red-500/20 dark:border-red-500/30">
+            <Target size={28} className="text-red-500 dark:text-red-400" />
           </div>
-          <h2 className="text-2xl font-black text-white mb-3">Thiếu cấu hình</h2>
-          <p className="text-sm text-slate-400 mb-6 leading-relaxed">
-            Không tìm thấy kết nối Cloud. Tạo file <span className="text-cyan-400 font-mono bg-slate-900 px-2 py-1 rounded-md">.env</span> tại thư mục gốc:
+          <h2 className="text-2xl font-black text-slate-900 dark:text-white mb-3">Thiếu cấu hình</h2>
+          <p className="text-sm text-slate-500 dark:text-slate-400 mb-6 leading-relaxed">
+            Không tìm thấy kết nối Cloud. Tạo file <span className="text-cyan-600 dark:text-cyan-400 font-mono bg-slate-200 dark:bg-slate-900 px-2 py-1 rounded-md">.env</span> tại thư mục gốc:
           </p>
-          <div className="bg-slate-950 rounded-2xl p-5 text-xs font-mono text-cyan-400 whitespace-pre-wrap border border-slate-900">
+          <div className="bg-slate-100 dark:bg-slate-950 rounded-2xl p-5 text-xs font-mono text-cyan-600 dark:text-cyan-400 whitespace-pre-wrap border border-slate-300 dark:border-slate-900">
 {`VITE_SUPABASE_URL=https://xxx.supabase.co
 VITE_SUPABASE_ANON_KEY=eyJhbGci...`}
           </div>

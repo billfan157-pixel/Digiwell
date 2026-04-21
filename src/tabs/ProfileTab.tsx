@@ -1,10 +1,9 @@
 import { useState, useMemo } from 'react';
-import { Sparkles, Trophy, Zap, UserPlus, Settings, Medal, Flame, Bike, Lock, BarChart2, Grid, Droplets, Target, Award, Coins, Shield, Heart, Moon, Sun } from 'lucide-react';
+import { Sparkles, Trophy, Zap, UserPlus, Settings, Medal, Flame, Bike, Lock, BarChart2, Grid, Droplets, Target, Award, Coins, Shield, Heart } from 'lucide-react';
 import { PostCard } from './FeedTab';
 import BadgesGrid from '../components/BadgesGrid';
 import CountUp from '../components/CountUp';
 import { toast } from 'sonner';
-import { useTheme } from '../context/ThemeProvider';
 
 interface ProfileTabProps {
   profile: any;
@@ -31,8 +30,8 @@ interface ProfileTabProps {
   handleToggleLikePost?: (post: any) => void;
 }
 
-const card = "bg-slate-900/60 backdrop-blur-xl border border-white/5 rounded-3xl shadow-xl";
-const cardGlow = "bg-slate-900/60 backdrop-blur-xl border border-cyan-500/20 rounded-3xl shadow-[0_0_20px_rgba(6,182,212,0.15)]";
+const card = "bg-slate-200/50 dark:bg-slate-900/60 backdrop-blur-xl border border-slate-300 dark:border-white/5 rounded-3xl shadow-xl";
+const cardGlow = "bg-slate-200/50 dark:bg-slate-900/60 backdrop-blur-xl border border-cyan-500/30 dark:border-cyan-500/20 rounded-3xl shadow-[0_0_20px_rgba(6,182,212,0.15)]";
 
 export default function ProfileTab({
   profile, isPremium, streak, streakFreezes, needsFreeze, useStreakFreeze, socialProfileStats, waterIntake, waterGoal, weeklyHistory,
@@ -41,7 +40,6 @@ export default function ProfileTab({
   posts, handleToggleLikePost
 }: ProfileTabProps) {
   const [activeView, setActiveView] = useState<'stats' | 'posts'>('stats');
-  const { theme, toggleTheme } = useTheme();
 
   const totalWeek = weeklyHistory.reduce((sum, item) => sum + item.ml, 0);
   const avgWeek = Math.round(totalWeek / (weeklyHistory.length || 1));
@@ -55,11 +53,11 @@ export default function ProfileTab({
       <div className="flex justify-between items-start pt-6 pb-4 px-6">
         <div>
           {/* OVERLINE (Subtitle) */}
-          <p className="text-xs font-semibold tracking-wider text-slate-400 uppercase mb-1">
+          <p className="text-[10px] font-bold tracking-widest text-slate-500 dark:text-slate-400 uppercase mb-1">
             THÔNG TIN CÁ NHÂN
           </p>
           {/* MAIN TITLE */}
-          <h1 className="text-3xl font-bold tracking-tight text-slate-50">
+          <h1 className="text-3xl font-black tracking-tight text-slate-900 dark:text-white">
             Hồ sơ
           </h1>
         </div>
@@ -94,12 +92,12 @@ export default function ProfileTab({
           <div className="absolute -bottom-14 -left-10 w-36 h-36 rounded-full blur-3xl bg-amber-500/10 pointer-events-none" />
           <div className="relative flex items-start gap-4">
             <div className="w-20 h-20 rounded-[1.75rem] flex items-center justify-center flex-shrink-0 shadow-lg" style={{ background: isPremium ? 'linear-gradient(135deg, #fbbf24, #d97706)' : 'linear-gradient(135deg, #06b6d4, #0ea5e9)' }}>
-              <span className="text-4xl font-black text-slate-900">{(profile?.nickname || 'U').charAt(0).toUpperCase()}</span>
+              <span className="text-4xl font-black text-white dark:text-slate-900">{(profile?.nickname || 'U').charAt(0).toUpperCase()}</span>
             </div>
             <div className="flex-1 min-w-0">
               <div className="min-w-0">
                 <div className="flex items-center gap-2 min-w-0">
-                  <h3 className="text-2xl font-black text-white truncate">{profile?.nickname || 'Khách'}</h3>
+                  <h3 className="text-2xl font-black text-slate-900 dark:text-white truncate">{profile?.nickname || 'Khách'}</h3>
                   <div className={`w-7 h-7 rounded-xl border flex items-center justify-center flex-shrink-0 ${currentRank.bg} ${currentRank.border}`} title={currentRank.name}>
                     <Trophy size={12} className={currentRank.color} />
                   </div>
@@ -128,18 +126,18 @@ export default function ProfileTab({
                 </div>
               </div>
               <div className="flex gap-4 mt-4">
-                <div className="text-center"><p className="text-white font-black text-sm">{socialProfileStats.followers}</p><p className="text-slate-500 text-[9px] uppercase font-bold tracking-widest mt-0.5">Follower</p></div>
-                <div className="text-center"><p className="text-white font-black text-sm">{socialProfileStats.following}</p><p className="text-slate-500 text-[9px] uppercase font-bold tracking-widest mt-0.5">Đang follow</p></div>
-                <div className="text-center"><p className="text-white font-black text-sm">{wp}</p><p className="text-slate-500 text-[9px] uppercase font-bold tracking-widest mt-0.5">Điểm WP</p></div>
+                <div className="text-center"><p className="text-slate-800 dark:text-white font-black text-sm">{socialProfileStats.followers}</p><p className="text-slate-500 text-[9px] uppercase font-bold tracking-widest mt-0.5">Follower</p></div>
+                <div className="text-center"><p className="text-slate-800 dark:text-white font-black text-sm">{socialProfileStats.following}</p><p className="text-slate-500 text-[9px] uppercase font-bold tracking-widest mt-0.5">Đang follow</p></div>
+                <div className="text-center"><p className="text-slate-800 dark:text-white font-black text-sm">{wp}</p><p className="text-slate-500 text-[9px] uppercase font-bold tracking-widest mt-0.5">Điểm WP</p></div>
               </div>
 
               {/* THANH EXP / CẤP ĐỘ */}
               <div className="mt-5">
                 <div className="flex justify-between items-end mb-1.5">
                   <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Tiến độ cấp độ</span>
-                  <span className="text-xs font-black text-cyan-400">LV.{profile?.level || 1} <span className="text-slate-500 text-[10px] font-mono">({(profile?.total_exp || 0) % 500}/500)</span></span>
+                  <span className="text-xs font-black text-cyan-500 dark:text-cyan-400">LV.{profile?.level || 1} <span className="text-slate-500 text-[10px] font-mono">({(profile?.total_exp || 0) % 500}/500)</span></span>
                 </div>
-                <div className="h-2 w-full bg-slate-800 rounded-full overflow-hidden border border-slate-700/50">
+                <div className="h-2 w-full bg-slate-300 dark:bg-slate-800 rounded-full overflow-hidden border border-slate-300 dark:border-slate-700/50">
                   <div 
                     className="h-full bg-gradient-to-r from-cyan-500 to-blue-500 rounded-full transition-all duration-1000 relative"
                     style={{ width: `${(((profile?.total_exp || 0) % 500) / 500) * 100}%` }}
@@ -151,8 +149,8 @@ export default function ProfileTab({
             </div>
           </div>
           <div className="grid grid-cols-2 gap-3 mt-5 relative z-10">
-            <button onClick={() => setShowAddFriend(true)} className="flex-1 py-2.5 rounded-full border border-white/20 text-white/80 text-xs font-bold flex items-center justify-center gap-2 active:scale-95 transition-all duration-200 ease-out hover:bg-white/10"><UserPlus size={14} /> Thêm bạn</button>
-            <button onClick={() => setShowProfileSettings(true)} className="flex-1 py-2.5 rounded-full border border-white/20 text-white/80 text-xs font-bold flex items-center justify-center gap-2 active:scale-95 transition-all duration-200 ease-out hover:bg-white/10"><Settings size={14} /> Cài đặt</button>
+            <button onClick={() => setShowAddFriend(true)} className="flex-1 py-2.5 rounded-full border border-slate-400 dark:border-white/20 text-slate-700 dark:text-white/80 text-xs font-bold flex items-center justify-center gap-2 active:scale-95 transition-all duration-200 ease-out hover:bg-slate-300 dark:hover:bg-white/10"><UserPlus size={14} /> Thêm bạn</button>
+            <button onClick={() => setShowProfileSettings(true)} className="flex-1 py-2.5 rounded-full border border-slate-400 dark:border-white/20 text-slate-700 dark:text-white/80 text-xs font-bold flex items-center justify-center gap-2 active:scale-95 transition-all duration-200 ease-out hover:bg-slate-300 dark:hover:bg-white/10"><Settings size={14} /> Cài đặt</button>
           </div>
         </div>
       </div>
@@ -161,17 +159,17 @@ export default function ProfileTab({
       <div className="flex border-b border-white/10 mb-4 px-2">
         <button
           onClick={() => setActiveView('stats')}
-          className={`flex-1 pb-3 text-sm font-bold flex items-center justify-center gap-2 transition-all relative ${activeView === 'stats' ? 'text-cyan-400' : 'text-slate-500 hover:text-slate-400'}`}
+          className={`flex-1 pb-3 text-sm font-bold flex items-center justify-center gap-2 transition-all relative ${activeView === 'stats' ? 'text-cyan-500 dark:text-cyan-400' : 'text-slate-500 hover:text-slate-400'}`}
         >
           <BarChart2 size={16} /> Thống kê
-          {activeView === 'stats' && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-cyan-400 rounded-t-full" />}
+          {activeView === 'stats' && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-cyan-500 dark:bg-cyan-400 rounded-t-full" />}
         </button>
         <button
           onClick={() => setActiveView('posts')}
-          className={`flex-1 pb-3 text-sm font-bold flex items-center justify-center gap-2 transition-all relative ${activeView === 'posts' ? 'text-white' : 'text-slate-500 hover:text-slate-400'}`}
+          className={`flex-1 pb-3 text-sm font-bold flex items-center justify-center gap-2 transition-all relative ${activeView === 'posts' ? 'text-slate-800 dark:text-white' : 'text-slate-500 hover:text-slate-400'}`}
         >
           <Grid size={16} /> Bài đăng
-          {activeView === 'posts' && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-white rounded-t-full" />}
+          {activeView === 'posts' && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-slate-800 dark:bg-white rounded-t-full" />}
         </button>
       </div>
 
@@ -179,65 +177,65 @@ export default function ProfileTab({
         <>
           <div className={`${card} p-5`}>
             <div className="flex items-center justify-between mb-5">
-              <h3 className="text-white text-lg font-black">Tiến độ tuần này</h3>
-              <button onClick={() => setActiveTab('insight')} className="px-4 py-1.5 rounded-full border border-white/20 text-white/80 text-[10px] font-bold uppercase tracking-widest active:scale-95 transition-all hover:bg-white/10">Chi tiết</button>
+              <h3 className="text-slate-800 dark:text-white text-lg font-black">Tiến độ tuần này</h3>
+              <button onClick={() => setActiveTab('insight')} className="px-4 py-1.5 rounded-full border border-slate-400 dark:border-white/20 text-slate-700 dark:text-white/80 text-[10px] font-bold uppercase tracking-widest active:scale-95 transition-all hover:bg-slate-300 dark:hover:bg-white/10">Chi tiết</button>
             </div>
             <div className="flex items-end justify-between gap-1.5 h-24">
               {weeklyHistory.map((item, index) => {
                 const pct = Math.min(waterGoal > 0 ? (item.ml / waterGoal) * 100 : 0, 100);
                 return (
                   <div key={item.d || `profile-history-item-${index}`} className="flex-1 flex flex-col items-center gap-1.5">
-                    <div className="w-full rounded-lg relative overflow-hidden bg-slate-900 border border-slate-700/50" style={{ height: '60px' }}>
+                    <div className="w-full rounded-lg relative overflow-hidden bg-slate-300 dark:bg-slate-900 border border-slate-400/50 dark:border-slate-700/50" style={{ height: '60px' }}>
                       <div className="absolute bottom-0 w-full rounded-lg transition-all duration-700" style={{ height: `${pct}%`, background: item.isToday ? 'linear-gradient(180deg, #06b6d4, #0ea5e9)' : 'rgba(6,182,212,0.2)' }} />
                     </div>
-                    <span className="text-[9px] font-bold" style={{ color: item.isToday ? '#22d3ee' : '#64748b' }}>{item.d}</span>
+                    <span className="text-[9px] font-bold" style={{ color: item.isToday ? '#0ea5e9' : '#64748b' }}>{item.d}</span>
                   </div>
                 );
               })}
             </div>
             <div className="mt-4 pt-3 border-t border-white/5 flex items-center justify-between text-xs font-bold">
-              <span className="text-slate-400">Trung bình: <span className="text-cyan-400">{avgWeek} ml</span></span>
-              <span className="text-slate-400">Tổng: <span className="text-cyan-400">{totalWeek} ml</span></span>
+              <span className="text-slate-500 dark:text-slate-400">Trung bình: <span className="text-cyan-600 dark:text-cyan-400">{avgWeek} ml</span></span>
+              <span className="text-slate-500 dark:text-slate-400">Tổng: <span className="text-cyan-600 dark:text-cyan-400">{totalWeek} ml</span></span>
             </div>
           </div>
 
           <div className={`${card} p-5`}>
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-white text-lg font-black">Hôm nay</h3>
-              <button onClick={() => setActiveTab('feed')} className="px-4 py-1.5 rounded-full border border-white/20 text-white/80 text-[10px] font-bold uppercase tracking-widest active:scale-95 transition-all hover:bg-white/10">Xem Feed</button>
+              <h3 className="text-slate-800 dark:text-white text-lg font-black">Hôm nay</h3>
+              <button onClick={() => setActiveTab('feed')} className="px-4 py-1.5 rounded-full border border-slate-400 dark:border-white/20 text-slate-700 dark:text-white/80 text-[10px] font-bold uppercase tracking-widest active:scale-95 transition-all hover:bg-slate-300 dark:hover:bg-white/10">Xem Feed</button>
             </div>
             <div className="grid grid-cols-2 gap-3">
-              <div className="rounded-2xl border border-slate-700/60 bg-slate-900/60 p-3 flex items-center gap-3">
+              <div className="rounded-2xl border border-slate-300 dark:border-slate-700/60 bg-slate-200/60 dark:bg-slate-900/60 p-3 flex items-center gap-3">
                 <div className="w-10 h-10 rounded-full bg-cyan-500/10 flex items-center justify-center border border-cyan-500/20 shrink-0">
-                  <Droplets size={18} className="text-cyan-400" />
+                  <Droplets size={18} className="text-cyan-500 dark:text-cyan-400" />
                 </div>
                 <div className="min-w-0">
                   <p className="text-slate-500 text-[10px] uppercase tracking-widest font-bold truncate">Đã uống</p>
-                  <p className="text-base font-black text-cyan-300 truncate">{waterIntake} ml</p>
+                  <p className="text-base font-black text-cyan-600 dark:text-cyan-300 truncate">{waterIntake} ml</p>
                 </div>
               </div>
 
-              <div className="rounded-2xl border border-slate-700/60 bg-slate-900/60 p-3 flex items-center gap-3">
+              <div className="rounded-2xl border border-slate-300 dark:border-slate-700/60 bg-slate-200/60 dark:bg-slate-900/60 p-3 flex items-center gap-3">
                 <div className="w-10 h-10 rounded-full bg-emerald-500/10 flex items-center justify-center border border-emerald-500/20 shrink-0">
-                  <Flame size={18} className="text-emerald-400" />
+                  <Flame size={18} className="text-emerald-500 dark:text-emerald-400" />
                 </div>
                 <div className="min-w-0">
                   <p className="text-slate-500 text-[10px] uppercase tracking-widest font-bold truncate">Hoàn thành</p>
-                  <p className="text-base font-black text-emerald-300 truncate">{completionPercent}%</p>
+                  <p className="text-base font-black text-emerald-600 dark:text-emerald-300 truncate">{completionPercent}%</p>
                 </div>
               </div>
 
-              <div className="rounded-2xl border border-slate-700/60 bg-slate-900/60 p-3 flex items-center gap-3">
+              <div className="rounded-2xl border border-slate-300 dark:border-slate-700/60 bg-slate-200/60 dark:bg-slate-900/60 p-3 flex items-center gap-3">
                 <div className="w-10 h-10 rounded-full bg-orange-500/10 flex items-center justify-center border border-orange-500/20 shrink-0">
-                  <Target size={18} className="text-orange-400" />
+                  <Target size={18} className="text-orange-500 dark:text-orange-400" />
                 </div>
                 <div className="min-w-0">
                   <p className="text-slate-500 text-[10px] uppercase tracking-widest font-bold truncate">Còn thiếu</p>
-                  <p className="text-base font-black text-orange-300 truncate">{remainingWater} ml</p>
+                  <p className="text-base font-black text-orange-600 dark:text-orange-300 truncate">{remainingWater} ml</p>
                 </div>
               </div>
 
-              <div className="rounded-2xl border border-slate-700/60 bg-slate-900/60 p-3 flex items-center gap-3">
+              <div className="rounded-2xl border border-slate-300 dark:border-slate-700/60 bg-slate-200/60 dark:bg-slate-900/60 p-3 flex items-center gap-3">
                 <div className={`w-10 h-10 rounded-full ${currentRank.bg} flex items-center justify-center border ${currentRank.border} shrink-0`}>
                   <Award size={18} className={currentRank.color} />
                 </div>
@@ -259,33 +257,14 @@ export default function ProfileTab({
                 <Heart size={20} />
               </div>
               <div className="text-left">
-                <p className="text-sm font-bold text-white">Apple Health / Google Fit</p>
+                <p className="text-sm font-bold text-slate-800 dark:text-white">Apple Health / Google Fit</p>
                 <p className="text-[10px] text-slate-500">Mở Cài đặt để đồng bộ</p>
               </div>
             </div>
           </button>
         </div>
 
-      {/* THEME TOGGLE CARD */}
-      <div className={`${card} p-5`}>
-        <button 
-          className="w-full flex items-center justify-between p-4 bg-transparent hover:bg-white/5 active:scale-[0.98] transition-all"
-          onClick={() => { toggleTheme(); if (navigator.vibrate) navigator.vibrate(50); }}
-        >
-          <div className="flex items-center gap-4">
-            <div className="w-10 h-10 rounded-xl bg-purple-500/10 flex items-center justify-center text-purple-400">
-              {theme === 'dark' ? <Moon size={20} /> : <Sun size={20} />}
-            </div>
-            <div className="text-left">
-              <p className="text-sm font-bold text-white">Giao diện</p>
-              <p className="text-[10px] text-slate-500">{theme === 'dark' ? 'Chế độ tối' : 'Chế độ sáng'}</p>
-            </div>
-          </div>
-          <div className={`w-10 h-6 rounded-full p-1 transition-colors ${theme === 'dark' ? 'bg-purple-500' : 'bg-slate-700'}`}>
-            <div className={`w-4 h-4 bg-white rounded-full transition-transform ${theme === 'dark' ? 'translate-x-4' : ''}`} />
-          </div>
-        </button>
-      </div>
+
 
       {/* HUY HIỆU (DYNAMIC) */}
       {profile?.id && <BadgesGrid userId={profile.id} />}
@@ -311,8 +290,8 @@ export default function ProfileTab({
               />
             ))
           ) : (
-            <div className="text-center py-10 bg-slate-900/50 rounded-3xl border border-white/5">
-              <Grid size={40} className="text-slate-700 mx-auto mb-3" />
+            <div className="text-center py-10 bg-slate-200/50 dark:bg-slate-900/50 rounded-3xl border border-slate-300 dark:border-white/5">
+              <Grid size={40} className="text-slate-400 dark:text-slate-700 mx-auto mb-3" />
               <p className="text-slate-500 text-sm font-medium">Bạn chưa có bài đăng nào</p>
             </div>
           )}

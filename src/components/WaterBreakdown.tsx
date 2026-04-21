@@ -1,149 +1,77 @@
 import React from 'react';
-import {
-  Droplets,
-  Sun,
-  Dumbbell,
-  Utensils,
-  HeartPulse,
-  Coffee
-} from 'lucide-react';
+import { motion } from 'framer-motion';
+import { Droplet, Sun, Zap, Utensils, HeartPulse, Activity } from 'lucide-react';
+import type { WaterIntakeBreakdown as RawBreakdown } from '../lib/HydrationEngine';
 
-interface BreakdownData {
-  base: number;
-  weatherExtra?: number;
-  workoutExtra?: number;
-  fastingExtra?: number;
-  healthExtra?: number;
-  dietExtra?: number;
-  total: number;
-  weatherText?: string;
-}
-
-interface WaterBreakdownProps {
-  breakdown: BreakdownData;
-}
-
-export default function WaterBreakdown({ breakdown }: WaterBreakdownProps) {
-  const rows = [
-    {
-      key: 'base',
-      label: 'Nhu cầu cơ bản',
-      value: breakdown.base,
-      icon: <Droplets size={16} />,
-      color: 'text-cyan-400',
-      bg: 'bg-cyan-500/10',
-      note: 'Theo cân nặng, tuổi và giới tính'
-    },
-    breakdown.weatherExtra && breakdown.weatherExtra > 0
-      ? {
-          key: 'weather',
-          label: 'Thời tiết',
-          value: breakdown.weatherExtra,
-          icon: <Sun size={16} />,
-          color: 'text-amber-400',
-          bg: 'bg-amber-500/10',
-          note: breakdown.weatherText || 'Nhiệt độ môi trường'
-        }
-      : null,
-    breakdown.workoutExtra && breakdown.workoutExtra > 0
-      ? {
-          key: 'workout',
-          label: 'Vận động',
-          value: breakdown.workoutExtra,
-          icon: <Dumbbell size={16} />,
-          color: 'text-emerald-400',
-          bg: 'bg-emerald-500/10',
-          note: 'Hoạt động thể chất trong ngày'
-        }
-      : null,
-    breakdown.fastingExtra && breakdown.fastingExtra > 0
-      ? {
-          key: 'fasting',
-          label: 'Ăn uống',
-          value: breakdown.fastingExtra,
-          icon: <Utensils size={16} />,
-          color: 'text-violet-400',
-          bg: 'bg-violet-500/10',
-          note: 'Ảnh hưởng từ chế độ ăn'
-        }
-      : null,
-    breakdown.healthExtra && breakdown.healthExtra > 0
-      ? {
-          key: 'health',
-          label: 'Sức khỏe',
-          value: breakdown.healthExtra,
-          icon: <HeartPulse size={16} />,
-          color: 'text-rose-400',
-          bg: 'bg-rose-500/10',
-          note: 'Tình trạng cơ thể hiện tại'
-        }
-      : null,
-    breakdown.dietExtra && breakdown.dietExtra > 0
-      ? {
-          key: 'diet',
-          label: 'Cafe / muối',
-          value: breakdown.dietExtra,
-          icon: <Coffee size={16} />,
-          color: 'text-orange-400',
-          bg: 'bg-orange-500/10',
-          note: 'Thức uống lợi tiểu hoặc ăn mặn'
-        }
-      : null
-  ].filter(Boolean);
+const BreakdownItem = ({ icon, label, value, colorClass, delay }: { icon: React.ReactNode, label: string, value: number, colorClass: string, delay: number }) => {
+  if (value === 0) return null;
 
   return (
-    <div className="rounded-3xl border border-white/10 bg-slate-900/70 backdrop-blur-xl p-5 space-y-4">
-      <div className="flex items-center justify-between">
-        <h3 className="text-white font-black text-lg">
-          Vì sao hôm nay cần uống
-        </h3>
-        <span className="text-cyan-400 font-black text-xl">
-          {breakdown.total} ml
-        </span>
+    <motion.div
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.3, delay }}
+      className="flex items-center justify-between p-3 bg-slate-800/50 border border-white/5 rounded-xl"
+    >
+      <div className="flex items-center gap-3">
+        <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${colorClass}`}>
+          {icon}
+        </div>
+        <span className="text-sm font-semibold text-slate-300">{label}</span>
       </div>
+      <span className={`text-sm font-bold ${value > 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+        {value > 0 ? '+' : ''}{value.toLocaleString('vi-VN')}ml
+      </span>
+    </motion.div>
+  );
+};
 
-      <div className="space-y-3">
-        {rows.map((item: any) => (
-          <div
-            key={item.key}
-            className="rounded-2xl border border-white/5 bg-white/5 p-3"
-          >
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div
-                  className={`w-9 h-9 rounded-xl flex items-center justify-center ${item.bg} ${item.color}`}
-                >
-                  {item.icon}
-                </div>
+export default function WaterBreakdown({ breakdown }: { breakdown: RawBreakdown }) {
+  const items = [
+    {
+      icon: <Droplet size={16} />,
+      label: 'Mục tiêu cơ bản',
+      value: (breakdown.base || 0) + (breakdown.ageAdj || 0) + (breakdown.genderAdj || 0),
+      color: 'bg-cyan-500/20 text-cyan-400',
+    },
+    {
+      icon: <Sun size={16} />,
+      label: 'Bù trừ thời tiết',
+      value: breakdown.climateAdj || 0,
+      color: 'bg-orange-500/20 text-orange-400',
+    },
+    {
+      icon: <Zap size={16} />,
+      label: 'Bù trừ vận động (Nền)',
+      value: breakdown.activityAdj || 0,
+      color: 'bg-fuchsia-500/20 text-fuchsia-400',
+    },
+    {
+      icon: <Activity size={16} />,
+      label: 'Bù trừ tập luyện (Watch)',
+      value: breakdown.exerciseAdj || 0,
+      color: 'bg-pink-500/20 text-pink-400',
+    },
+    {
+      icon: <Utensils size={16} />,
+      label: 'Bù trừ ăn uống',
+      value: (breakdown.foodWaterAdj || 0) + (breakdown.dietAdj || 0),
+      color: 'bg-lime-500/20 text-lime-400',
+    },
+    {
+      icon: <HeartPulse size={16} />,
+      label: 'Tình trạng sức khỏe',
+      value: breakdown.healthAdj || 0,
+      color: 'bg-rose-500/20 text-rose-400',
+    },
+  ];
 
-                <div>
-                  <p className="text-white font-semibold text-sm">
-                    {item.label}
-                  </p>
-                  <p className="text-slate-500 text-xs">
-                    {item.note}
-                  </p>
-                </div>
-              </div>
-
-              <div className="text-right">
-                <p className="text-white font-bold">
-                  +{item.value} ml
-                </p>
-              </div>
-            </div>
-          </div>
-        ))}
-      </div>
-
-      <div className="pt-4 border-t border-white/5 flex justify-between items-center">
-        <span className="text-slate-400 text-sm font-medium">
-          Tổng mục tiêu hôm nay
-        </span>
-        <span className="text-cyan-400 text-2xl font-black">
-          {breakdown.total} ml
-        </span>
-      </div>
+  return (
+    <div className="space-y-2">
+      <h4 className="text-sm font-bold text-white uppercase tracking-wider mb-3">Phân tích mục tiêu</h4>
+      {items.map((item, index) => (
+        <BreakdownItem key={item.label} icon={item.icon} label={item.label} value={item.value} colorClass={item.color} delay={0.1 * (index + 1)} />
+      ))}
     </div>
   );
 }

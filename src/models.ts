@@ -15,6 +15,11 @@ export interface Profile {
   coins?: number;
   avatar_url?: string;
   city?: string;
+  level?: number;
+  total_exp?: number;
+  streak?: number;
+  total_water?: number;
+  weekly_days?: number;
 }
 
 export interface Friend {

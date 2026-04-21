@@ -63,5 +63,7 @@
 	</array>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>Ứng dụng cần vị trí của bạn để cập nhật thời tiết chính xác tại khu vực của bạn.</string>
+	<key>NSFaceIDUsageDescription</key>
+	<string>DigiWell sử dụng Face ID/Touch ID để bảo mật tài khoản và bảo vệ dữ liệu sức khỏe của bạn.</string>
 </dict>
 </plist>

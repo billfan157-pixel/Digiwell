@@ -1,11 +1,11 @@
 import React, { useState, useMemo } from 'react';
-import { Swords, Calendar, Trophy, Gift, Sparkles } from 'lucide-react';
+import { Swords, Calendar, Trophy, Gift, Sparkles, Target } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { playSuccessSound } from '@/lib/audio';
-import { QuestCard } from '@/components/QuestComponents';
-import { QuestCardSkeleton } from '@/components/QuestCard';
+import { QuestCard, QuestCardSkeleton } from '@/components/QuestCard';
 import { useQuests } from '@/hooks/useQuests';
 import type { UserQuest } from '@/config/questConfig';
+import { toast } from 'sonner';
 
 interface QuestPageProps {
   userId: string;
@@ -14,18 +14,25 @@ interface QuestPageProps {
 
 const tabConfig = {
   daily: { icon: Calendar, label: 'Hàng ngày', color: 'cyan' },
+  weekly: { icon: Target, label: 'Hàng tuần', color: 'purple' },
   level: { icon: Trophy, label: 'Thành tựu', color: 'amber' }, // Map achievement to level
 };
 
 const QuestPage = ({ userId, onRewardClaimed }: QuestPageProps) => {
-  const [filter, setFilter] = useState<'daily' | 'level'>('daily');
+  const [filter, setFilter] = useState<'daily' | 'weekly' | 'level'>('daily');
   const [claimingId, setClaimingId] = useState<string | null>(null);
 
   // Use the new useQuests hook
   const { quests, loading, claimQuest, refetch } = useQuests(userId, 1); // userLevel = 1 as default
 
-  const handleClaimReward = async (userQuest: UserQuest) => {
+  const handleClaimReward = async (userQuestId: string) => {
     if (claimingId) return;
+
+    const userQuest = quests.find(q => q.id === userQuestId);
+    if (!userQuest) {
+      toast.error("Không tìm thấy nhiệm vụ này!");
+      return;
+    }
 
     // Validate user ID exists
     if (!userId || userId === 'undefined') {
@@ -33,12 +40,12 @@ const QuestPage = ({ userId, onRewardClaimed }: QuestPageProps) => {
       return;
     }
 
-    setClaimingId(userQuest.id); // Use user_quest_id for claiming
+    setClaimingId(userQuestId); // Use user_quest_id for claiming
 
     const toastId = toast.loading('Đang nhận thưởng...');
 
     try {
-      const result = await claimQuest(userQuest.id);
+      const result = await claimQuest(userQuestId);
       if (result) {
         console.log('[QuestPage] Claim successful, updating UI');
         toast.success(
@@ -62,12 +69,19 @@ const QuestPage = ({ userId, onRewardClaimed }: QuestPageProps) => {
   };
 
   const filteredQuests = useMemo(() => {
-    // Map 'achievement' to 'level' for compatibility
-    const questType = filter === 'achievement' ? 'level' : filter;
-    return quests.filter(q =>
-      q.quest.type === questType &&
-      q.status !== 'claimed' // Hide claimed quests
-    );
+    const filtered = quests.filter(q => (q.quest as any)?.type === filter);
+    
+    // Sắp xếp ưu tiên: Hoàn thành chưa nhận thưởng > Đang thực hiện > Đã nhận thưởng
+    return filtered.sort((a, b) => {
+      const getPriority = (status: string) => {
+        if (status === 'completed') return 0; // Ưu tiên 1: Đã xong, chờ nhận thưởng
+        if (status === 'active') return 1;    // Ưu tiên 2: Đang làm
+        if (status === 'claimed') return 2;   // Ưu tiên 3: Đã nhận thưởng (cuối cùng)
+        return 3;
+      };
+      
+      return getPriority(a.status) - getPriority(b.status);
+    });
   }, [quests, filter]);
 
   const stats = useMemo(() => {
@@ -111,12 +125,14 @@ const QuestPage = ({ userId, onRewardClaimed }: QuestPageProps) => {
           return (
             <button
               key={key}
-              onClick={() => setFilter(key as 'daily' | 'level')}
+              onClick={() => setFilter(key as 'daily' | 'weekly' | 'level')}
               className={`flex-1 py-2.5 text-xs font-bold rounded-lg flex items-center justify-center gap-2 transition-all
                 ${
                   active
                     ? key === 'daily'
                       ? 'bg-cyan-500/20 text-cyan-400'
+                      : key === 'weekly'
+                      ? 'bg-purple-500/20 text-purple-400'
                       : 'bg-amber-500/20 text-amber-400'
                     : 'text-slate-400 hover:text-slate-200'
                 }

@@ -109,7 +109,7 @@ export default function ClubDashboard({
     try {
       // Sử dụng Promise.allSettled để tất cả các API đều chạy, kể cả khi một trong số chúng lỗi
       const results = await Promise.allSettled([
-        supabase.from("clubs").select("id,name,description,weekly_goal_ml,owner_id,min_level_required").eq("id", clubId).single(),
+        supabase.from("clubs").select("id,name,description,weekly_goal_ml,owner_id,min_level_required").eq("id", clubId).maybeSingle(),
         supabase.from('club_members').select('user_id, role, total_ml, profiles(nickname, avatar_url)').eq('club_id', clubId).order('total_ml', { ascending: false }).limit(50),
         supabase.from("club_activity").select(`id, message, amount, created_at, profiles (nickname)`).eq("club_id", clubId).order("created_at", { ascending: false }).limit(20),
         supabase.from('club_admin_logs').select(`id, created_at, message, profiles ( nickname )`).eq('club_id', clubId).order('created_at', { ascending: false }).limit(50),
@@ -119,9 +119,12 @@ export default function ClubDashboard({
       // Xử lý từng kết quả một cách an toàn
       if (results[0].status === 'fulfilled' && results[0].value.data) {
         setClub(results[0].value.data);
-      } else if (results[0].status === 'rejected') {
-        console.error("Error fetching club info:", results[0].reason);
-        throw new Error("Không thể tải thông tin bang hội.");
+      } else {
+        if (results[0].status === 'rejected') {
+          console.error("Error fetching club info:", results[0].reason);
+        }
+        // Throw a user-friendly error if club is not found or access is denied
+        throw new Error("Không thể tải thông tin bang hội. Có thể bang hội không tồn tại hoặc bạn không có quyền truy cập.");
       }
 
       if (results[1].status === 'fulfilled' && results[1].value.data) {

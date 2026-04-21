@@ -57,6 +57,8 @@ export type WaterIntakeInput = {
   currentTempC?:   number;           // Nhiệt độ hiện tại (°C) từ weather API
   exerciseMinutes?: number;          // Phút tập hôm nay (nếu biết)
   isFasting?:      boolean;          // [NEW] Đang trong chế độ nhịn ăn (Fasting)
+  wakeUpTime?:     string;           // "07:00"
+  bedTime?:        string;           // "23:00"
 };
 
 // ── Output Types ───────────────────────────────────────────
@@ -104,6 +106,8 @@ export function calculateWaterIntake(input: WaterIntakeInput): WaterIntakeResult
     activityLevel, climate, healthCondition,
     dietFactors, currentTempC, exerciseMinutes = 0,
     isFasting = false, // [NEW] Khởi tạo giá trị mặc định cho isFasting
+    wakeUpTime = '07:00',
+    bedTime = '23:00',
   } = input;
 
   const notes: string[] = [];
@@ -143,9 +147,14 @@ export function calculateWaterIntake(input: WaterIntakeInput): WaterIntakeResult
     high:      { ml: 800,  label: 'Vận động cao' },
     athlete:   { ml: 1200, label: 'VĐV/tập nặng' },
   };
-  const activityAdj = activityMap[activityLevel].ml;
-  if (activityLevel !== 'sedentary') {
-    notes.push(`Mức vận động "${activityMap[activityLevel].label}": thêm ${activityAdj}ml/ngày để bù mồ hôi`);
+  // FIX: Chốt chặn an toàn cuối cùng. Nếu `activityLevel` không hợp lệ (do dữ liệu cũ trong DB),
+  // dùng 'moderate' làm giá trị mặc định để tránh crash.
+  const safeActivityLevel = activityMap[activityLevel] ? activityLevel : 'moderate';
+  const activityAdj = activityMap[safeActivityLevel].ml;
+  if (safeActivityLevel !== 'sedentary') {
+    // Dùng safeActivityLevel để lấy label, tránh lỗi tương tự
+    const label = activityMap[safeActivityLevel].label;
+    notes.push(`Mức vận động "${label}": thêm ${activityAdj}ml/ngày để bù mồ hôi`);
   }
 
   // ─ 5. Climate/temperature adjustment
@@ -290,7 +299,7 @@ export function calculateWaterIntake(input: WaterIntakeInput): WaterIntakeResult
     : 'medium';
 
   // ─ 11. Generate schedule
-  const schedule = generateHydrationSchedule(goalMl, activityLevel, exerciseMinutes);
+  const schedule = generateHydrationSchedule(goalMl, activityLevel, exerciseMinutes, wakeUpTime, bedTime);
 
   return {
     goalMl,
@@ -320,18 +329,41 @@ function generateHydrationSchedule(
   goalMl: number,
   activity: ActivityLevel,
   exerciseMinutes: number,
+  wakeUpTime: string,
+  bedTime: string,
 ): HydrationSchedule[] {
-  // Phân phối lượng nước theo thời điểm sinh lý quan trọng trong ngày
-  const schedule: HydrationSchedule[] = [
-    { time: '06:30', amount: 300, note: 'Uống ngay sau khi thức dậy — cơ thể mất nước qua hơi thở khi ngủ' },
-    { time: '08:00', amount: 200, note: 'Trước bữa sáng 30 phút — hỗ trợ tiêu hoá và kích hoạt trao đổi chất' },
-    { time: '10:00', amount: 250, note: 'Giữa buổi sáng — duy trì sự tập trung và năng lượng' },
-    { time: '12:00', amount: 200, note: 'Trước bữa trưa 30 phút — không uống nhiều trong khi ăn' },
-    { time: '14:30', amount: 300, note: 'Đầu chiều — chống buồn ngủ sau trưa, thường bị bỏ quên nhất' },
-    { time: '16:30', amount: 250, note: 'Cuối chiều — giảm mệt mỏi trước khi kết thúc buổi làm việc' },
-    { time: '18:30', amount: 200, note: 'Trước bữa tối 30 phút' },
-    { time: '20:30', amount: 150, note: 'Buổi tối — không uống quá nhiều để tránh thức giữa đêm' },
-  ];
+  const parseTime = (timeStr: string): number => {
+    const [hours, minutes] = timeStr.split(':').map(Number);
+    return hours + minutes / 60;
+  };
+
+  const formatTime = (hours: number): string => {
+    const h = Math.floor(hours);
+    const m = Math.round((hours - h) * 60);
+    return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+  };
+
+  const wakeHour = parseTime(wakeUpTime);
+  let bedHour = parseTime(bedTime);
+  if (bedHour < wakeHour) bedHour += 24; // Handle overnight
+
+  const wakingDuration = bedHour - wakeHour;
+  const numIntervals = Math.max(5, Math.floor(wakingDuration / 1.5)); // Chia thành các khoảng, tối thiểu 5
+  const intervalHours = wakingDuration / (numIntervals + 1);
+
+  const schedule: HydrationSchedule[] = [];
+
+  // 1. Ngay khi thức dậy
+  schedule.push({ time: formatTime(wakeHour + 0.25), amount: 300, note: 'Uống ngay sau khi thức dậy — cơ thể mất nước qua hơi thở khi ngủ' });
+
+  // 2. Phân bổ đều trong ngày
+  for (let i = 1; i <= numIntervals; i++) {
+    const time = wakeHour + i * intervalHours;
+    schedule.push({ time: formatTime(time), amount: 250, note: 'Duy trì năng lượng và sự tập trung' });
+  }
+
+  // 3. Trước khi đi ngủ
+  schedule.push({ time: formatTime(bedHour - 0.5), amount: 150, note: 'Uống một ít trước khi ngủ, không uống quá nhiều' });
 
   // Thêm slot trước/sau tập nếu có
   if (exerciseMinutes > 0) {

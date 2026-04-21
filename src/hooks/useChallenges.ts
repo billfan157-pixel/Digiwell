@@ -1,143 +1,100 @@
-// ============================================================
-// DigiWell — useChallenges Hook
-// ============================================================
-
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
-import { claimChallengeReward } from '@/lib/questEngine';
-import type { Challenge, UserChallenge, RankTier } from '../config/questConfig';
 
-export function useChallenges(userId: string | undefined, userRank: RankTier = 1) {
-  const [available,       setAvailable]       = useState<Challenge[]>([]);
-  const [userChallenges,  setUserChallenges]  = useState<UserChallenge[]>([]);
-  const [loading,         setLoading]         = useState(true);
+export interface Challenge {
+  id: string;
+  type: 'time_limited' | 'milestone';
+  slug: string;
+  title: string;
+  description: string;
+  duration_days: number | null;
+  target_value: number | null;
+  reward_exp: number;
+  reward_coins: number;
+  min_rank: number;
+  category: string;
+  difficulty: 'easy' | 'normal' | 'hard' | 'elite' | 'mythic';
+  premium_only: boolean;
+}
 
-  const fetchAll = useCallback(async () => {
-    if (!userId) return;
+export interface UserChallenge {
+  id: string;
+  challenge_id: string;
+  status: string;
+  current_value: number;
+  days_completed: number;
+  days_failed: number;
+  joined_at: string;
+}
+
+export function useChallenges(userId: string) {
+  const [challenges, setChallenges] = useState<Challenge[]>([]);
+  const [userChallenges, setUserChallenges] = useState<UserChallenge[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [joiningId, setJoiningId] = useState<string | null>(null);
+
+  const fetchChallenges = useCallback(async () => {
+    if (!userId || userId === 'undefined') return;
     setLoading(true);
-
     try {
-      // Challenge available (rank đủ điều kiện, chưa join hoặc đã fail)
-      const [availableRes, userRes] = await Promise.all([
-        supabase
-          .from('challenges')
-          .select('*')
-          .eq('is_active', true)
-          .lte('min_rank', userRank)
-          .order('min_rank'),
-
-        supabase
-          .from('user_challenges')
-          .select(`
-            id, challenge_id, status, current_value,
-            milestones_reached, days_completed, days_failed,
-            joined_at, completed_at,
-            challenge:challenges (*)
-          `)
-          .eq('user_id', userId)
-          .order('joined_at', { ascending: false }),
+      const [challengesRes, userChallengesRes] = await Promise.all([
+        supabase.from('challenges').select('*').eq('is_active', true).order('sort_order', { ascending: true }),
+        supabase.from('user_challenges').select('*').eq('user_id', userId).eq('status', 'joined')
       ]);
+      
+      if (challengesRes.error) throw challengesRes.error;
+      if (userChallengesRes.error) throw userChallengesRes.error;
 
-      setAvailable((availableRes.data ?? []) as Challenge[]);
-      setUserChallenges((userRes.data ?? []) as unknown as UserChallenge[]);
-    } catch (err) {
-      console.error('[useChallenges] fetch:', err);
+      setChallenges(challengesRes.data || []);
+      setUserChallenges(userChallengesRes.data || []);
+    } catch (error: any) {
+      console.error("Error fetching challenges:", error);
+      toast.error("Không thể tải danh sách thử thách");
     } finally {
       setLoading(false);
     }
-  }, [userId, userRank]);
-
-  useEffect(() => { fetchAll(); }, [fetchAll]);
-
-  // Join challenge
-  const joinChallenge = useCallback(async (challengeId: string) => {
-    if (!userId) return;
-
-    // Check nếu đã join rồi
-    const alreadyJoined = userChallenges.some(
-      uc => uc.challenge_id === challengeId && uc.status === 'joined',
-    );
-    if (alreadyJoined) {
-      toast.error('Bạn đang tham gia challenge này rồi!');
-      return;
-    }
-
-    const { data, error } = await supabase
-      .from('user_challenges')
-      .insert({ user_id: userId, challenge_id: challengeId })
-      .select(`
-        id, challenge_id, status, current_value,
-        milestones_reached, days_completed, days_failed,
-        joined_at, completed_at,
-        challenge:challenges (*)
-      `)
-      .single();
-
-    if (error) {
-      toast.error('Không thể tham gia lúc này');
-      return;
-    }
-
-    setUserChallenges(prev => [data as unknown as UserChallenge, ...prev]);
-    toast.success('Đã tham gia challenge!');
-  }, [userId, userChallenges]);
-
-  // Abandon challenge
-  const abandonChallenge = useCallback(async (userChallengeId: string) => {
-    if (!userId) return;
-
-    const { error } = await supabase
-      .from('user_challenges')
-      .update({ status: 'abandoned' })
-      .eq('id', userChallengeId)
-      .eq('user_id', userId);
-
-    if (error) {
-      toast.error('Không thể bỏ challenge lúc này');
-      return;
-    }
-
-    setUserChallenges(prev =>
-      prev.map(uc =>
-        uc.id === userChallengeId ? { ...uc, status: 'abandoned' } : uc,
-      ),
-    );
-    toast('Đã bỏ challenge.');
   }, [userId]);
 
-  // Claim reward
-  const claim = useCallback(async (userChallengeId: string) => {
-    if (!userId) return;
-    await claimChallengeReward(userId, userChallengeId);
-    setUserChallenges(prev =>
-      prev.map(uc =>
-        uc.id === userChallengeId
-          ? { ...uc, status: 'completed', completed_at: new Date().toISOString() }
-          : uc,
-      ),
-    );
-  }, [userId]);
+  useEffect(() => {
+    fetchChallenges();
+  }, [fetchChallenges]);
 
-  // Filter helpers
-  const activeUserChallenges    = userChallenges.filter(uc => uc.status === 'joined');
-  const completedUserChallenges = userChallenges.filter(uc => uc.status === 'completed');
-  const availableToJoin         = available.filter(
-    ch => !userChallenges.some(
-      uc => uc.challenge_id === ch.id && ['joined', 'completed'].includes(uc.status),
-    ),
-  );
+  const handleJoinChallenge = async (challenge: Challenge) => {
+    setJoiningId(challenge.id);
+    const toastId = toast.loading("Đang đăng ký tham gia...");
 
-  return {
-    available,
-    availableToJoin,
-    userChallenges,
-    activeUserChallenges,
-    completedUserChallenges,
-    loading,
-    joinChallenge,
-    abandonChallenge,
-    claimChallenge: claim,
-    refetch: fetchAll,
+    try {
+      const { error } = await supabase.from('user_challenges').insert({
+        user_id: userId,
+        challenge_id: challenge.id,
+        status: 'joined',
+        current_value: 0,
+        days_completed: 0,
+        days_failed: 0,
+        milestones_reached: []
+      });
+
+      if (error) throw error;
+
+      toast.success(`Đã tham gia: ${challenge.title}`, { id: toastId });
+      
+      const { data: updatedUserChallenges, error: refetchError } = await supabase
+        .from('user_challenges')
+        .select('*')
+        .eq('user_id', userId)
+        .eq('status', 'joined');
+
+      if (refetchError) throw refetchError;
+      setUserChallenges(updatedUserChallenges || []);
+
+    } catch (error: any) {
+      console.error("Error joining challenge:", error);
+      toast.error("Lỗi khi tham gia thử thách. Vui lòng thử lại.", { id: toastId });
+    } finally {
+      setJoiningId(null);
+    }
   };
+
+  return { challenges, userChallenges, loading, joiningId, handleJoinChallenge };
 }

@@ -1,13 +1,15 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
+import { runQuestEngine, runChallengeEngine } from '@/lib/questEngine';
+import type { QuestEngineContext } from '@/lib/questEngine';
 import { playWaterDropSound } from '@/lib/audio';
 import type { Profile } from '@/models';
 
 // ── Constants ──────────────────────────────────────────────
 
 const OFFLINE_QUEUE_KEY = 'digiwell_offline_water_queue';
-const EXP_PER_100ML     = 5;
+const EXP_PER_100ML     = 12;
 
 // ── Types ──────────────────────────────────────────────────
 
@@ -39,8 +41,16 @@ interface OfflineQueueItem {
 const isRealUser = (id: unknown): id is string =>
   typeof id === 'string' && id.length >= 30;
 
-const calcExp = (amount: number): number =>
-  Math.floor(amount / 100) * EXP_PER_100ML;
+const calcExp = (amount: number, level: number = 1): number => {
+  // EXP per 100ml dựa trên level
+  let expPer100ml = EXP_PER_100ML;
+  if (level >= 30) expPer100ml = 15;
+  else if (level >= 20) expPer100ml = 10;
+  else if (level >= 10) expPer100ml = 7;
+  else expPer100ml = 5; // level 1-9
+
+  return Math.floor(amount / 100) * expPer100ml;
+};
 
 const toDateStr = (d = new Date()): string =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; // Local date
@@ -86,8 +96,6 @@ export function useWaterData(
   onWaterLogged?: (optimisticAmount?: number, optimisticExp?: number) => void | Promise<void>,
 ) {
   const [waterEntries,        setWaterEntries]        = useState<WaterLog[]>([]);
-  const [editingEntry,        setEditingEntry]        = useState<WaterLog | null>(null);
-  const [editAmount,          setEditAmount]          = useState<number | string>(0);
   const [isSyncing,           setIsSyncing]           = useState(false);
   const [hasPendingCloudSync, setHasPendingCloudSync] = useState(false);
 
@@ -171,7 +179,9 @@ export function useWaterData(
       const actualAmount = Math.round(amount * factor);
       if (actualAmount <= 0) return;
 
-      const exp    = calcExp(actualAmount);
+      // Get current level for exp calculation
+      const currentLevel = profile?.level || 1;
+      const exp    = calcExp(actualAmount, currentLevel);
       const now    = new Date().toISOString();
       const today  = toDateStr();
       const tempId = `temp-${Date.now()}`;
@@ -292,39 +302,47 @@ export function useWaterData(
 
   // ── Edit ───────────────────────────────────────────────
 
-  const handleEditEntry = useCallback(async () => {
-    if (!editingEntry) return;
+  const handleEditEntry = useCallback(async (id: string, newAmount: number) => {
+    const originalEntry = waterEntriesRef.current.find(e => e.id === id);
+    if (!originalEntry) {
+      toast.error('Lỗi: Không tìm thấy mục cần sửa.');
+      return;
+    }
 
-    const amount = Number(editAmount);
-    if (Number.isNaN(amount) || amount <= 0) return;
+    if (Number.isNaN(newAmount) || newAmount <= 0) {
+      toast.error('Lượng nước không hợp lệ.');
+      return;
+    }
 
-    const exp      = calcExp(amount);
+    const currentLevel = profile?.level || 1;
+    const newExp      = calcExp(newAmount, currentLevel);
     const snapshot = waterEntriesRef.current;
     // Tính delta để notify parent đúng số chênh lệch, không phải tổng mới
-    const deltaAmount = amount - editingEntry.amount;
-    const deltaExp    = exp    - editingEntry.exp;
+    const deltaAmount = newAmount - originalEntry.amount;
+    const deltaExp    = newExp    - originalEntry.exp;
 
     setWaterEntries(prev =>
-      prev.map(e => e.id === editingEntry.id ? { ...e, amount, exp } : e),
+      prev.map(e => e.id === id ? { ...e, amount: newAmount, exp: newExp } : e),
     );
-    setEditingEntry(null);
 
-    if (!isRealUser(profile?.id) || editingEntry.id.startsWith('temp-')) return;
+    if (!isRealUser(profile?.id) || id.startsWith('temp-')) return;
 
     try {
       const { error } = await supabase
         .from('water_logs')
-        .update({ amount, exp })
-        .eq('id', editingEntry.id);
+        .update({ amount: newAmount, exp: newExp })
+        .eq('id', id);
 
       if (error) throw error;
 
+      toast.success('Đã cập nhật lượng nước!');
       if (deltaAmount !== 0) await onWaterLogged?.(deltaAmount, deltaExp);
-    } catch {
+    } catch (err) {
+      console.error('[useWaterData] edit failed:', err);
       setWaterEntries(snapshot);
-        toast.error('❌ Không thể cập nhật. Kiểm tra kết nối!');
+      toast.error('❌ Không thể cập nhật. Kiểm tra kết nối!');
     }
-  }, [editingEntry, editAmount, profile?.id, onWaterLogged]);
+  }, [profile?.id, onWaterLogged]);
 
   // ── Offline sync ───────────────────────────────────────
 
@@ -371,14 +389,11 @@ export function useWaterData(
     handleAddWater,
     handleDeleteEntry,
     handleEditEntry,
-    editingEntry,
-    setEditingEntry,
-    editAmount,
-    setEditAmount,
     hasPendingCloudSync,
     isSyncing,
     waterIntakeRef,
     waterEntriesRef,
+    refetchWater: fetchAllWater,
     syncOfflineLogs,
   };
 }

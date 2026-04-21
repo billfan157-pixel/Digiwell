@@ -20,11 +20,11 @@ export default function LeagueTab({
       <div className="flex justify-between items-start pt-6 pb-4 px-6">
         <div>
           {/* OVERLINE (Subtitle) */}
-          <p className="text-xs font-semibold tracking-wider text-slate-400 uppercase mb-1">
+          <p className="text-[10px] font-bold tracking-widest text-slate-400 uppercase mb-1">
             BẢNG VINH DANH
           </p>
           {/* MAIN TITLE */}
-          <h1 className="text-3xl font-bold tracking-tight text-slate-50 flex items-center gap-3">
+          <h1 className="text-3xl font-black tracking-tight text-white flex items-center gap-3">
             Xếp hạng <Trophy size={28} className="text-yellow-400 drop-shadow-[0_0_10px_rgba(250,204,21,0.5)]" />
           </h1>
         </div>

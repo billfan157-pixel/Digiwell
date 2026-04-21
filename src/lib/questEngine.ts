@@ -32,6 +32,7 @@ function checkCondition(
   switch (conditionType) {
     case 'drink_today':
       current = ctx.waterToday;
+      console.log(`[QuestEngine] drink_today: current=${current}, conditionValue=${conditionValue}`);
       break;
     case 'goal_percent':
       current = ctx.waterGoal > 0
@@ -52,16 +53,20 @@ function checkCondition(
       break;
   }
 
-  return {
+  const result = {
     progress:  Math.min(current, conditionValue),
     completed: current >= conditionValue,
   };
+  console.log(`[QuestEngine] condition=${conditionType}, current=${current}, value=${conditionValue}, progress=${result.progress}, completed=${result.completed}`);
+  return result;
 }
 
 // ── Main engine: chạy sau mỗi water event ─────────────────
 
 export async function runQuestEngine(ctx: QuestEngineContext): Promise<void> {
   if (!ctx.userId) return;
+
+  console.log('[QuestEngine] Running with ctx:', ctx);
 
   try {
     // Lấy tất cả quest đang active của user

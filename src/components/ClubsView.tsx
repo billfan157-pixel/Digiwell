@@ -70,8 +70,8 @@ export default function ClubsView({ userId }: { userId: string }) {
       const [clubsRes, membersRes, waterRes, profileRes, friendsRes, ownedRes] = await Promise.all([
         supabase.from("clubs").select("*").order("total_wp", { ascending: false }),
         supabase.from("club_members").select("club_id, role").eq("user_id", userId),
-        supabase.from("water_logs").select("amount, created_at").eq("user_id", userId).order('created_at', {ascending: false}),
-        supabase.from("profiles").select("level, total_wp").eq("id", userId).single(),
+        supabase.from("water_logs").select("amount, created_at").eq("user_id", userId).order('created_at', { ascending: false }),
+        supabase.from("profiles").select("level, total_wp").eq("id", userId).maybeSingle(),
         // Thêm head: true để chỉ lấy count (tiết kiệm băng thông)
         supabase.from("friends").select("*", { count: 'exact', head: true }).eq("user_id", userId),
         supabase.from("clubs").select("*", { count: 'exact', head: true }).eq("owner_id", userId)
@@ -166,7 +166,7 @@ export default function ClubsView({ userId }: { userId: string }) {
         .from('clubs')
         .select('name')
         .ilike('name', trimmedName)
-        .single();
+        .maybeSingle();
 
       if (existingClub) {
         throw new Error("Tên bang hội này đã tồn tại. Vui lòng chọn tên khác.");
@@ -182,10 +182,10 @@ export default function ClubsView({ userId }: { userId: string }) {
           min_level_required: newClubMinLevel,
         })
         .select()
-        .single();
+        .maybeSingle();
 
-      if (insertError) throw insertError;
-      if (!newClubData) throw new Error("Không thể lấy thông tin bang vừa tạo.");
+      if (insertError) throw insertError; // Lỗi từ DB
+      if (!newClubData) throw new Error("Không thể lấy thông tin bang vừa tạo. Có thể do chính sách RLS."); // Lỗi không đọc lại được
 
       // BƯỚC 2.5: TỰ ĐỘNG THÊM CHỦ BANG LÀM THÀNH VIÊN (FIX LỖI CHAT & QUẢN LÝ)
       const { error: memberError } = await supabase

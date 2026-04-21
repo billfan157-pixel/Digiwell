@@ -12,9 +12,9 @@ const card = "bg-slate-900/60 backdrop-blur-xl border border-white/5 rounded-3xl
 
 export default function RegisterScreen({ onBack, onSuccess }: RegisterScreenProps) {
   const [regData, setRegData] = useState({
-    nickname: '', password: '', gender: 'Nam', age: 20,
-    height: 172, weight: 82, activity: 'active',
-    climate: 'Nhiệt đới (Nóng)', goal: 'Giảm mỡ & Tăng cơ',
+    nickname: '', password: '', gender: 'Nam', age: 25,
+    height: 172, weight: 68, activity: 'sedentary',
+    climate: 'tropical', goal: 'Sức khỏe tổng quát',
     wakeUp: '06:00', bedTime: '23:00'
   });
   
@@ -109,13 +109,21 @@ export default function RegisterScreen({ onBack, onSuccess }: RegisterScreenProp
             <div>
               <label className="text-[10px] text-slate-400 font-semibold uppercase mb-1.5 block">Cường độ vận động</label>
               <select value={regData.activity} onChange={e => setRegData({ ...regData, activity: e.target.value })} disabled={isSubmittingReg} className="w-full p-3 rounded-2xl bg-slate-800/50 border border-white/5 text-white text-sm outline-none focus:ring-2 focus:ring-cyan-500/50 focus:border-transparent transition-all duration-200 ease-out disabled:opacity-50">
-                <option value="sedentary">Ít vận động</option><option value="low">Vận động nhẹ</option><option value="active">Năng động</option><option value="very">Rất năng động</option>
+                <option value="sedentary">Ít vận động (Văn phòng)</option>
+                <option value="light">Vận động nhẹ (Đi bộ)</option>
+                <option value="moderate">Vận động vừa (3-5 buổi/tuần)</option>
+                <option value="high">Vận động cao (Hàng ngày)</option>
+                <option value="athlete">Vận động viên</option>
               </select>
             </div>
             <div>
               <label className="text-[10px] text-slate-400 font-semibold uppercase mb-1.5 block">Khí hậu nơi sống</label>
               <select value={regData.climate} onChange={e => setRegData({ ...regData, climate: e.target.value })} disabled={isSubmittingReg} className="w-full p-3 rounded-2xl bg-slate-800/50 border border-white/5 text-white text-sm outline-none focus:ring-2 focus:ring-cyan-500/50 focus:border-transparent transition-all duration-200 ease-out disabled:opacity-50">
-                <option value="Nhiệt đới (Nóng)">Nhiệt đới</option><option value="Ôn đới (Mát)">Ôn đới</option><option value="Khô hanh">Khô hanh</option><option value="Lạnh">Lạnh</option>
+                <option value="temperate">Mát mẻ (20-26°C)</option>
+                <option value="warm">Nóng ấm (26-32°C)</option>
+                <option value="hot">Rất nóng (32-38°C)</option>
+                <option value="tropical">Nhiệt đới ẩm</option>
+                <option value="cold">Lạnh (&lt; 20°C)</option>
               </select>
             </div>
             <div>

@@ -72,16 +72,16 @@ export default function RegisterScreen({ onBack, onSuccess }: RegisterScreenProp
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 text-white flex flex-col items-center justify-center p-4 font-sans animate-in fade-in duration-500">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white flex flex-col items-center justify-center p-4 font-sans animate-in fade-in duration-500">
       <div className="w-full max-w-md">
-        <button onClick={onBack} className="absolute top-6 left-6 flex items-center gap-2 text-slate-400 hover:text-white transition-colors">
+        <button onClick={onBack} className="absolute top-6 left-6 flex items-center gap-2 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors">
           <ArrowLeft size={18} />
           Quay lại
         </button>
         
         <div className="text-center mb-10">
           <h1 className="text-4xl font-black tracking-tight">Tạo tài khoản</h1>
-          <p className="text-slate-400 mt-2">Bắt đầu hành trình sức khỏe của bạn.</p>
+          <p className="text-slate-500 dark:text-slate-400 mt-2">Bắt đầu hành trình sức khỏe của bạn.</p>
         </div>
 
         <form onSubmit={handleRegister} className="space-y-5">
@@ -93,7 +93,7 @@ export default function RegisterScreen({ onBack, onSuccess }: RegisterScreenProp
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
-              className="w-full bg-slate-900/80 border-2 border-slate-700 rounded-xl py-4 pl-12 pr-4 focus:border-cyan-500 focus:ring-0 outline-none transition-all"
+              className="w-full bg-white dark:bg-slate-900/80 border-2 border-slate-300 dark:border-slate-700 rounded-xl py-4 pl-12 pr-4 focus:border-cyan-500 focus:ring-0 outline-none transition-all"
             />
           </div>
           <div className="relative">
@@ -104,7 +104,7 @@ export default function RegisterScreen({ onBack, onSuccess }: RegisterScreenProp
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
-              className="w-full bg-slate-900/80 border-2 border-slate-700 rounded-xl py-4 pl-12 pr-4 focus:border-cyan-500 focus:ring-0 outline-none transition-all"
+              className="w-full bg-white dark:bg-slate-900/80 border-2 border-slate-300 dark:border-slate-700 rounded-xl py-4 pl-12 pr-4 focus:border-cyan-500 focus:ring-0 outline-none transition-all"
             />
           </div>
           <div className="relative">
@@ -115,7 +115,7 @@ export default function RegisterScreen({ onBack, onSuccess }: RegisterScreenProp
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
               required
-              className="w-full bg-slate-900/80 border-2 border-slate-700 rounded-xl py-4 pl-12 pr-4 focus:border-cyan-500 focus:ring-0 outline-none transition-all"
+              className="w-full bg-white dark:bg-slate-900/80 border-2 border-slate-300 dark:border-slate-700 rounded-xl py-4 pl-12 pr-4 focus:border-cyan-500 focus:ring-0 outline-none transition-all"
             />
           </div>
 
@@ -128,9 +128,9 @@ export default function RegisterScreen({ onBack, onSuccess }: RegisterScreenProp
           </button>
         </form>
         
-        <p className="text-center text-sm text-slate-500 mt-8">
+        <p className="text-center text-sm text-slate-500 dark:text-slate-400 mt-8">
           Đã có tài khoản?{' '}
-          <button onClick={() => onBack()} className="font-bold text-cyan-400 hover:underline">
+          <button onClick={() => onBack()} className="font-bold text-cyan-500 dark:text-cyan-400 hover:underline">
             Đăng nhập ngay
           </button>
         </p>

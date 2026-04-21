@@ -66,14 +66,19 @@ export const RANKS: Record<RankTier, RankInfo> = {
 // ── EXP per level thresholds ───────────────────────────────
 
 // Trả về EXP cần để lên từ level hiện tại → level tiếp theo
+// Công thức: 150 × (1.15^(level-1)) × (1 + floor((level-1)/10) × 0.5)
+// Làm tròn lên bội số 50 để đẹp số
 export function expRequiredForLevel(level: number): number {
-  if (level <= 5)  return 500;
-  if (level <= 12) return 1000;
-  if (level <= 20) return 2000;
-  if (level <= 30) return 3050;
-  if (level <= 40) return 6000;
-  if (level <= 48) return 13000;
-  return 40000; // level 49 → 50
+  if (level <= 1) return 150; // Level 1 không cần exp
+
+  const base = 150;
+  const growthRate = 1.15;
+  const bonusMultiplier = 1 + Math.floor((level - 1) / 10) * 0.5;
+
+  const rawExp = base * Math.pow(growthRate, level - 1) * bonusMultiplier;
+
+  // Làm tròn lên bội số 50
+  return Math.ceil(rawExp / 50) * 50;
 }
 
 // Tổng EXP để đạt đúng level đó (tính từ 0)

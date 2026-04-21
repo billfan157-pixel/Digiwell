@@ -1,15 +1,17 @@
-import { Droplet, Coffee, Activity, Zap, Camera, History, Share2, LayoutGrid, Plus, LogOut, Settings, CloudSun, Heart, X, Menu, User, Moon, Sun, RefreshCw, ChevronLeft, Edit2, ChevronRight, Clock, Coins } from 'lucide-react';
-import { useState, useEffect } from 'react';
+import { Droplet, Coffee, Activity, Zap, Camera, History, Share2, LayoutGrid, Plus, LogOut, Settings, CloudSun, Heart, X, Menu, User, RefreshCw, ChevronLeft, Edit2, ChevronRight, Clock, Coins, Bluetooth, BatteryFull, ScrollText } from 'lucide-react';
+import { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
-import { useTheme } from '../context/ThemeProvider';
+
 import { useUIStore } from '../store/useUIStore';
 import LevelBar from '../components/LevelBar';
 import LevelDetailModal from './LevelDetailModal';
-import { RecentActivity } from '../hooks/RecentActivity';
 import { seedSampleWaterLogs } from '../hooks/useWaterData';
 import type { WaterLog } from '../hooks/useWaterData';
+import { supabase } from '../lib/supabase';
 import CountUp from '../components/CountUp';
+import HomeHydrationHero from '../components/home/HomeHydrationHero';
+import HydrationGoalModal from '../components/modals/HydrationGoalModal';
 // import { WaterProgress } from '../hooks/WaterProgress';
 // import { QuickActions } from '../hooks/QuickActions';
 
@@ -53,6 +55,68 @@ export const presetStyles: Record<string, { bg: string; border: string; text: st
   red: { bg: 'bg-red-500/20', border: 'border-red-500/30', text: 'text-red-400', hover: 'hover:bg-red-500/30' }
 };
 
+function RecentActivity(props: {
+  waterEntries: WaterLog[];
+  handleDeleteEntry: (id: unknown) => Promise<void>;
+  handleEditEntry?: (id: string, newAmount: number) => Promise<void>;
+  isSyncing: boolean;
+  setShowHistory: (show: boolean) => void;
+  hasPendingCloudSync: boolean;
+}) {
+  const { waterEntries, handleDeleteEntry, setShowHistory } = props;
+
+  const recentEntries = useMemo(() => {
+    return [...(waterEntries || [])]
+      .sort((a, b) => new Date(b.timestamp || b.created_at).getTime() - new Date(a.timestamp || a.created_at).getTime())
+      .slice(0, 2);
+  }, [waterEntries]);
+
+  if (recentEntries.length === 0) {
+    return (
+      <div className="text-center py-8 bg-slate-200/40 dark:bg-slate-900/40 rounded-2xl border border-slate-300/50 dark:border-white/5">
+        <Droplet size={32} className="text-slate-400 dark:text-slate-600 mx-auto mb-2" />
+        <p className="text-slate-500 text-sm font-medium">Chưa có hoạt động nào hôm nay</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <h3 className="text-slate-800 dark:text-white text-base font-black flex items-center gap-2">
+          <History size={16} className="text-cyan-500 dark:text-cyan-400" />
+          Hoạt động gần đây
+        </h3>
+        <button onClick={() => setShowHistory(true)} className="text-cyan-500 dark:text-cyan-400 text-xs font-bold hover:underline">
+          Xem tất cả
+        </button>
+      </div>
+      
+      <div className="space-y-2">
+        {recentEntries.map((entry: any) => (
+          <div key={entry.id} className="group flex items-center justify-between p-2.5 bg-slate-200/50 dark:bg-slate-900/60 backdrop-blur-md border border-slate-300 dark:border-white/10 rounded-2xl hover:border-cyan-500/30 dark:hover:border-cyan-500/20 transition-colors">
+            <div className="flex items-center gap-3">
+              <div className={`w-9 h-9 rounded-lg flex items-center justify-center ${presetStyles[entry.color || 'cyan']?.bg || presetStyles.cyan.bg} ${presetStyles[entry.color || 'cyan']?.border || presetStyles.cyan.border}`}>
+                {renderIcon(entry.icon || 'Droplet', { size: 18, className: presetStyles[entry.color || 'cyan']?.text || presetStyles.cyan.text })}
+              </div>
+              <div>
+                <p className="text-sm font-bold text-slate-800 dark:text-white">{entry.name}</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">{formatWaterEntryTime(entry)}</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-base font-black text-cyan-500 dark:text-cyan-400">+{entry.amount}ml</span>
+              <button onClick={() => handleDeleteEntry(entry.id)} className="w-7 h-7 rounded-lg bg-slate-300/50 dark:bg-white/10 text-slate-600 dark:text-slate-300 hover:text-rose-500 dark:hover:text-rose-400 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                <X size={14} />
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 interface HomeTabProps {
   profile: any;
   nowText: { date: string; time: string };
@@ -89,13 +153,17 @@ interface HomeTabProps {
   weeklyHistory?: any[];
   waterEntries?: WaterLog[];
   handleDeleteEntry?: (id: unknown) => Promise<void>;
+  handleEditEntry?: (id: string, newAmount: number) => Promise<void>;
   setActiveTab: (tab: any) => void;
   isSyncing?: boolean;
   setShowShopModal: (show: boolean) => void;
+  setShowQuestModal: (show: boolean) => void;
+  hydrationResult?: any;
+  smartBottle: any;
 }
 const glassCard = "backdrop-blur-xl border rounded-3xl shadow-xl bg-slate-200/50 dark:bg-slate-900/60 border-slate-300 dark:border-white/5";
 const HomeTab = (props: HomeTabProps) => {
-  const { theme, toggleTheme } = useTheme();
+
   const { setShowProfileSettings } = useUIStore();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isDrinkMenuOpen, setIsDrinkMenuOpen] = useState(false);
@@ -104,11 +172,16 @@ const HomeTab = (props: HomeTabProps) => {
   const [customVolume, setCustomVolume] = useState(250);
   const [customFactor, setCustomFactor] = useState(1.0);
   const [editingDrinkId, setEditingDrinkId] = useState<string | null>(null);
-  
   const [quickAmounts, setQuickAmounts] = useState<number[]>([100, 250, 500]);
   const [isEditingQuickAmounts, setIsEditingQuickAmounts] = useState(false);
   const [draftAmounts, setDraftAmounts] = useState<[number, number, number]>([100, 250, 500]);
   const [showLevelDetail, setShowLevelDetail] = useState(false);
+  const [showGoalDetail, setShowGoalDetail] = useState(false);
+
+  const { isSyncing: isConnecting, isConnected, metrics, connectDevice: connectBottle, disconnectDevice: disconnectBottle, forceSync: syncData } = props.smartBottle;
+  const batteryLevel = metrics?.batteryLevel || 0;
+  // Lấy dữ liệu bình trực tiếp từ Hook đã đồng bộ
+  const equippedBottle = props.smartBottle.equippedBottle;
 
   const DEFAULT_GRID_DRINKS = [
     { id: 'default-1', name: 'Nước lọc', amount: 250, factor: 1.0, icon: 'Droplet', bg: 'bg-cyan-500/10 border-cyan-500/20 hover:bg-cyan-500/20', color: 'text-cyan-400' },
@@ -145,22 +218,14 @@ const HomeTab = (props: HomeTabProps) => {
   return (
     <div className="space-y-6 animate-in fade-in zoom-in duration-300 pb-10">
       {/* Header */}
-      <div className="flex justify-between items-start pt-6 pb-4 px-6">
+      <div className="flex justify-between items-center pt-6 pb-2 px-6">
         <div>
-          <p className="text-xs font-semibold tracking-wider text-slate-500 dark:text-slate-400 uppercase mb-1">{props.nowText.date}</p>
-          <h1 className="text-3xl font-bold tracking-tight text-slate-900 dark:text-slate-50">
+          <p className="text-[10px] font-bold tracking-widest text-slate-500 dark:text-slate-400 uppercase mb-1">{props.nowText.date}</p>
+          <h1 className="text-3xl font-black tracking-tight text-slate-900 dark:text-white">
             Chào, <span className="text-cyan-500 dark:text-cyan-400">{props.profile?.nickname || 'bạn'}</span> 👋
           </h1>
         </div>
-        <div className="flex items-center gap-2 sm:gap-3">
-          <div className="flex items-center gap-1.5 bg-emerald-500/15 px-3 py-2 rounded-full border border-emerald-500/30 shadow-[0_0_10px_rgba(16,185,129,0.2)]">
-            <Zap size={16} className="text-emerald-400" />
-            <span className="text-emerald-400 font-black text-sm"><CountUp value={props.profile?.wp || 0} /></span>
-          </div>
-          <button onClick={() => props.setShowShopModal(true)} className="flex items-center gap-1.5 bg-amber-500/15 px-3 py-2 rounded-full border border-amber-500/30 shadow-[0_0_10px_rgba(245,158,11,0.2)] hover:bg-amber-500/20 transition-all active:scale-95">
-            <Coins size={16} className="text-amber-400" />
-            <span className="text-amber-400 font-black text-sm"><CountUp value={props.profile?.coins || 0} /></span>
-          </button>
+        <div className="flex items-center gap-2">
           <button onClick={props.handleScan} disabled={props.isScanning} className="w-10 h-10 rounded-full bg-slate-200/50 dark:bg-slate-900/60 backdrop-blur-xl border border-slate-300 dark:border-white/5 flex items-center justify-center text-cyan-500 dark:text-cyan-400 hover:bg-cyan-500/20 active:scale-95 transition-all duration-200 ease-out disabled:opacity-50">
             <Camera size={18} />
           </button>
@@ -168,6 +233,23 @@ const HomeTab = (props: HomeTabProps) => {
             <Menu size={18} />
           </button>
         </div>
+      </div>
+
+      {/* Gamification Stats Bar */}
+      <div className="flex items-center justify-between px-6 mb-6">
+        <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 bg-emerald-500/10 px-3 py-1.5 rounded-xl border border-emerald-500/20">
+            <Zap size={14} className="text-emerald-500 dark:text-emerald-400" />
+            <span className="text-emerald-600 dark:text-emerald-400 font-black text-xs"><CountUp value={props.profile?.wp || 0} /></span>
+          </div>
+          <button onClick={() => props.setShowShopModal(true)} className="flex items-center gap-1.5 bg-amber-500/10 px-3 py-1.5 rounded-xl border border-amber-500/20 hover:bg-amber-500/20 transition-all active:scale-95">
+            <Coins size={14} className="text-amber-500 dark:text-amber-400" />
+            <span className="text-amber-600 dark:text-amber-400 font-black text-xs"><CountUp value={props.profile?.coins || 0} /></span>
+          </button>
+        </div>
+        <button onClick={() => props.setShowQuestModal(true)} className="flex items-center gap-1.5 bg-purple-500/10 px-3 py-1.5 rounded-xl border border-purple-500/20 text-purple-600 dark:text-purple-400 hover:bg-purple-500/20 active:scale-95 transition-all font-bold text-xs">
+          <ScrollText size={14} /> Nhiệm vụ
+        </button>
       </div>
 
       {/* Gamification: Level Bar */}
@@ -182,24 +264,31 @@ const HomeTab = (props: HomeTabProps) => {
         <div className="h-[168px] bg-slate-900/60 border border-white/5 rounded-3xl p-5 mb-6 shadow-xl animate-pulse" />
       )}
 
-      {/* T */}
-      <div className="flex flex-col items-center justify-center relative mt-6 mb-8">
-        <div className="absolute -top-16 -right-16 w-48 h-48 bg-cyan-500/20 blur-[60px] rounded-full pointer-events-none" />
-        <div className="absolute -bottom-16 -left-16 w-48 h-48 bg-blue-500/20 blur-[60px] rounded-full pointer-events-none" />
+      {/* CORE HYDRATION VISUALIZER */}
+      <HomeHydrationHero
+        isConnected={isConnected}
+        isConnecting={isConnecting}
+        metrics={metrics}
+        equippedBottleSkin={equippedBottle}
+        waterIntake={props.waterIntake}
+        waterGoal={props.waterGoal}
+        progress={props.progress}
+        bottleCapacity={750}
+        onConnectBottle={connectBottle}
+        onOpenGoalDetail={() => setShowGoalDetail(true)}
+      />
 
-        <div className="relative w-56 h-56 rounded-full flex items-center justify-center shadow-[0_0_30px_rgba(6,182,212,0.15)]" style={{ background: `conic-gradient(var(--color-primary, #22d3ee) ${Math.min(props.progress, 100) * 3.6}deg, ${theme === 'dark' ? 'rgba(30,41,59,0.5)' : 'rgba(226,232,240,0.5)'} 0deg)` }}>
-          <div className="absolute inset-[10px] bg-slate-100 dark:bg-slate-900 rounded-full flex flex-col items-center justify-center shadow-inner border border-slate-200 dark:border-slate-800">
-            <Droplet size={28} className="text-cyan-500 dark:text-cyan-400 mb-2 opacity-80" />
-            <span className="text-5xl font-black text-slate-800 dark:text-slate-100 tracking-tighter">{isNaN(props.waterIntake) || props.waterIntake == null ? 0 : props.waterIntake}</span>
-            <span className="text-slate-500 dark:text-slate-400 text-sm font-bold mt-1">/ {props.waterGoal} ml</span>
-          </div>
-        </div>
-
-        {/* Quick Water Actions */}
-        <div className="mt-8 w-full">
+      {!isConnected && (
+        <div className="mt-2">
           <div className="flex items-center justify-between px-2 mb-3">
             <span className="text-slate-500 dark:text-slate-400 text-xs font-bold uppercase tracking-widest">Nạp nhanh</span>
-            <button onClick={() => { setDraftAmounts([quickAmounts[0] || 100, quickAmounts[1] || 250, quickAmounts[2] || 500]); setIsEditingQuickAmounts(true); }} className="text-slate-500 hover:text-cyan-500 dark:hover:text-cyan-400 transition-colors p-1">
+            <button
+              onClick={() => {
+                setDraftAmounts([quickAmounts[0] || 100, quickAmounts[1] || 250, quickAmounts[2] || 500]);
+                setIsEditingQuickAmounts(true);
+              }}
+              className="text-slate-500 hover:text-cyan-500 dark:hover:text-cyan-400 transition-colors p-1"
+            >
               <Settings size={14} />
             </button>
           </div>
@@ -212,76 +301,125 @@ const HomeTab = (props: HomeTabProps) => {
               >
                 <Droplet size={20} className="text-cyan-500 dark:text-cyan-400 mb-1 group-hover:scale-110 transition-transform" />
                 <span className="font-bold text-base">+{amount}</span>
-                <span className="text-[10px] text-slate-400 uppercase tracking-widest mt-0.5">ml</span>
+                <span className="text-[10px] text-slate-500 dark:text-slate-400 uppercase tracking-widest mt-0.5">ml</span>
               </button>
             ))}
           </div>
         </div>
-      </div>
+      )}
 
-      {/* Utilities Row */}
-      <div className="flex justify-between items-center bg-slate-200/50 dark:bg-slate-900/50 backdrop-blur-xl border border-slate-300 dark:border-white/5 rounded-2xl p-1 shadow-lg">
-        <button onClick={() => props.setActiveTab('profile')} className="flex-1 flex flex-col items-center justify-center gap-1.5 py-3 rounded-xl active:scale-95 transition-all duration-200 ease-out hover:bg-slate-300/50 dark:hover:bg-white/5 group">
-          <Settings size={18} className="text-slate-500 dark:text-slate-400 group-hover:text-cyan-500 dark:group-hover:text-cyan-400 transition-colors" />
-          <span className="text-[9px] text-slate-600 dark:text-slate-500 font-bold uppercase tracking-widest group-hover:text-cyan-500 dark:group-hover:text-cyan-400 transition-colors">Cài đặt</span>
-        </button>
-        
-        <div className="w-[1px] h-8 bg-slate-300 dark:bg-white/5" />
-
-        <button onClick={() => props.setShowHistory(true)} className="flex-1 flex flex-col items-center justify-center gap-1.5 py-3 rounded-xl active:scale-95 transition-all duration-200 ease-out hover:bg-slate-300/50 dark:hover:bg-white/5 group">
-          <Clock size={18} className="text-slate-500 dark:text-slate-400 group-hover:text-cyan-500 dark:group-hover:text-cyan-400 transition-colors" />
-          <span className="text-[9px] text-slate-600 dark:text-slate-500 font-bold uppercase tracking-widest group-hover:text-cyan-500 dark:group-hover:text-cyan-400 transition-colors">Nhật ký</span>
-        </button>
-        
-        <div className="w-[1px] h-8 bg-slate-300 dark:bg-white/5" />
-        
-        <button onClick={() => setIsDrinkMenuOpen(true)} className="flex-1 flex flex-col items-center justify-center gap-1.5 py-3 rounded-xl active:scale-95 transition-all duration-200 ease-out hover:bg-slate-300/50 dark:hover:bg-white/5 group">
-          <LayoutGrid size={18} className="text-slate-500 dark:text-slate-400 group-hover:text-cyan-500 dark:group-hover:text-cyan-400 transition-colors" />
-          <span className="text-[9px] text-slate-600 dark:text-slate-500 font-bold uppercase tracking-widest group-hover:text-cyan-500 dark:group-hover:text-cyan-400 transition-colors">Menu nước</span>
-        </button>
+      {/* Utilities Row - Tech Pill */}
+      <div className="flex justify-between items-center bg-white dark:bg-slate-900/60 backdrop-blur-xl border border-slate-200 dark:border-white/10 rounded-[2rem] p-1.5 shadow-lg mx-1 mb-6">
+         <button onClick={() => { setShowProfileSettings(true); }} className="flex-1 flex items-center justify-center gap-2 py-3.5 rounded-full active:scale-95 transition-all duration-200 ease-out hover:bg-slate-100 dark:hover:bg-white/5 group">
+            <Settings size={16} className="text-slate-500 dark:text-slate-400 group-hover:text-cyan-500 transition-colors" />
+            <span className="text-[10px] text-slate-600 dark:text-slate-400 font-bold uppercase tracking-widest group-hover:text-cyan-500 transition-colors">Cài đặt</span>
+         </button>
+         <div className="w-[1px] h-6 bg-slate-200 dark:bg-slate-700/50" />
+         <button onClick={() => props.setShowHistory(true)} className="flex-1 flex items-center justify-center gap-2 py-3.5 rounded-full active:scale-95 transition-all duration-200 ease-out hover:bg-slate-100 dark:hover:bg-white/5 group">
+            <Clock size={16} className="text-slate-500 dark:text-slate-400 group-hover:text-cyan-500 transition-colors" />
+            <span className="text-[10px] text-slate-600 dark:text-slate-400 font-bold uppercase tracking-widest group-hover:text-cyan-500 transition-colors">Nhật ký</span>
+         </button>
+         <div className="w-[1px] h-6 bg-slate-200 dark:bg-slate-700/50" />
+         <button onClick={() => setIsDrinkMenuOpen(true)} className="flex-1 flex items-center justify-center gap-2 py-3.5 rounded-full active:scale-95 transition-all duration-200 ease-out hover:bg-slate-100 dark:hover:bg-white/5 group">
+            <LayoutGrid size={16} className="text-slate-500 dark:text-slate-400 group-hover:text-cyan-500 transition-colors" />
+            <span className="text-[10px] text-slate-600 dark:text-slate-400 font-bold uppercase tracking-widest group-hover:text-cyan-500 transition-colors">Menu</span>
+         </button>
       </div>
 
       {/* Recent Activity */}
-      <RecentActivity
-        waterEntries={props.waterEntries || []}
-        handleDeleteEntry={props.handleDeleteEntry || (async () => {})}
-        isSyncing={props.isSyncing || false}
-        setShowHistory={props.setShowHistory}
-        hasPendingCloudSync={props.hasPendingCloudSync}
-      />
+      <div className="px-6">
+        <RecentActivity
+          waterEntries={props.waterEntries || []}
+          handleDeleteEntry={props.handleDeleteEntry || (async () => {})}
+          handleEditEntry={props.handleEditEntry}
+          isSyncing={props.isSyncing || false}
+          setShowHistory={props.setShowHistory}
+          hasPendingCloudSync={props.hasPendingCloudSync}
+        />
+      </div>
+      
+      {/* Telemetry Dashboard */}
+      <div className="mb-6">
+        <p className="text-[10px] font-bold tracking-widest text-slate-500 dark:text-slate-400 uppercase mb-3 px-2 flex items-center gap-2">
+          <Activity size={12} className="text-indigo-400" /> Đo lường sinh học
+        </p>
+        <div className="grid grid-cols-2 gap-3">
+          {/* Weather Card */}
+          <div className="bg-white dark:bg-slate-900/40 backdrop-blur-xl border border-slate-200 dark:border-white/5 rounded-3xl p-5 relative overflow-hidden group hover:border-sky-500/30 transition-colors shadow-sm">
+            <div className="absolute -right-4 -top-4 w-20 h-20 bg-sky-500/10 blur-2xl rounded-full" />
+            <div className="flex items-center justify-between mb-4 relative z-10">
+               <div className="w-8 h-8 rounded-full bg-sky-500/10 border border-sky-500/20 flex items-center justify-center">
+                 <CloudSun size={14} className="text-sky-500 dark:text-sky-400" />
+               </div>
+               <span className="text-[9px] text-slate-500 uppercase tracking-widest font-bold">Môi trường</span>
+            </div>
+            <div className="relative z-10">
+               <p className="text-2xl font-black text-slate-800 dark:text-white tracking-tight">{props.weatherData ? `${props.weatherData.temp}°C` : '--°'}</p>
+               <p className="text-slate-500 dark:text-slate-400 text-xs font-medium mt-1 truncate">{props.weatherData ? props.weatherData.status : 'Chưa đồng bộ'}</p>
+            </div>
+          </div>
 
-      <div className="grid grid-cols-2 gap-4">
-        {/* Weather Card */}
-        <div className={`${glassCard} p-5 flex flex-col justify-center`}>
-          <div className="flex items-center gap-3 mb-3">
-            <div className="w-10 h-10 rounded-full bg-sky-500/10 flex items-center justify-center">
-              <CloudSun size={20} className="text-sky-400" />
+          {/* Watch Card */}
+          <div className="bg-white dark:bg-slate-900/40 backdrop-blur-xl border border-slate-200 dark:border-white/5 rounded-3xl p-5 relative overflow-hidden group hover:border-rose-500/30 transition-colors shadow-sm">
+            <div className="absolute -right-4 -top-4 w-20 h-20 bg-rose-500/10 blur-2xl rounded-full" />
+            <div className="flex items-center justify-between mb-4 relative z-10">
+               <div className="w-8 h-8 rounded-full bg-rose-500/10 border border-rose-500/20 flex items-center justify-center">
+                 <Heart size={14} className="text-rose-500 dark:text-rose-400" />
+               </div>
+               <span className="text-[9px] text-slate-500 uppercase tracking-widest font-bold">Sinh hiệu</span>
             </div>
-            <div>
-              <p className="text-slate-500 dark:text-slate-400 text-[10px] uppercase tracking-widest font-bold">Thời tiết</p>
-              <p className="text-slate-800 dark:text-slate-100 font-bold text-sm">{props.weatherData ? props.weatherData.status : 'Chưa ĐB'}</p>
+            <div className="relative z-10">
+               {(!props.watchData || props.watchData.heartRate === 0) ? (
+                 <>
+                   <p className="text-2xl font-black text-slate-400 dark:text-slate-600">--</p>
+                   <p className="text-slate-500 dark:text-slate-400 text-xs font-medium mt-1">Chưa kết nối</p>
+                 </>
+               ) : (
+                 <>
+                   <p className="text-2xl font-black text-slate-800 dark:text-white tracking-tight">{props.watchData.heartRate} <span className="text-sm text-slate-500 font-bold tracking-normal">BPM</span></p>
+                   <p className="text-emerald-500 dark:text-emerald-400 text-[10px] uppercase tracking-widest font-bold mt-1">Hoạt động tốt</p>
+                 </>
+               )}
             </div>
           </div>
-          <p className="text-3xl font-black text-slate-800 dark:text-slate-100">{props.weatherData ? `${props.weatherData.temp}°C` : '--°'}</p>
         </div>
-        {/* Watch Card */}
-        <div className={`${glassCard} p-5 flex flex-col justify-center`}>
-          <div className="flex items-center gap-3 mb-3">
-            <div className="w-10 h-10 rounded-full bg-rose-500/10 flex items-center justify-center">
-              <Heart size={20} className="text-rose-400" />
+      </div>
+
+      {/* Smart Bottle Card */}
+      <div className="bg-white dark:bg-slate-900/60 backdrop-blur-xl border border-slate-200 dark:border-white/10 rounded-[2rem] p-4 flex items-center justify-between mb-6 shadow-sm hover:border-cyan-500/30 transition-colors">
+        <div className="flex items-center gap-4">
+          <div className="relative">
+            <div className={`w-12 h-12 rounded-2xl flex items-center justify-center border transition-all ${isConnected ? 'bg-cyan-500/10 border-cyan-500/30 text-cyan-500 dark:text-cyan-400 shadow-[0_0_15px_rgba(6,182,212,0.2)]' : 'bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-400 dark:text-slate-500'}`}>
+              <Bluetooth size={20} className={isConnecting ? 'animate-pulse' : ''} />
             </div>
-            <div>
-              <p className="text-slate-500 dark:text-slate-400 text-[10px] uppercase tracking-widest font-bold">Nhịp tim</p>
-              <p className="text-slate-800 dark:text-slate-100 font-bold text-sm">Apple Watch</p>
-            </div>
+            {isConnected && <div className="absolute -top-1 -right-1 w-3 h-3 bg-emerald-400 rounded-full border-2 border-white dark:border-slate-900" />}
           </div>
-          {(!props.watchData || props.watchData.heartRate === 0) ? (
-            <div>
-              <p className="text-3xl font-black text-slate-400 dark:text-slate-500">--</p>
-              <p className="text-xs text-slate-500 mt-1 font-medium">Chưa kết nối</p>
+          <div>
+            <h3 className="text-slate-900 dark:text-white font-bold text-sm">DigiBottle Pro</h3>
+            {isConnected ? (
+              <div className="flex items-center gap-2 mt-1">
+                <span className="text-emerald-500 dark:text-emerald-400 text-[10px] font-black uppercase tracking-widest flex items-center gap-1"><BatteryFull size={10} /> {batteryLevel}%</span>
+                <span className="text-slate-400 text-[10px] uppercase font-bold tracking-widest border-l border-slate-300 dark:border-slate-700 pl-2">Đã kết nối</span>
+              </div>
+            ) : (
+              <p className="text-slate-500 text-[10px] uppercase font-bold tracking-widest mt-1">{isConnecting ? 'Đang tìm thiết bị...' : 'Ngoại tuyến'}</p>
+            )}
+          </div>
+        </div>
+        <div>
+          {isConnected ? (
+            <div className="flex gap-2">
+              <button onClick={syncData} className="w-10 h-10 rounded-xl bg-cyan-500/10 border border-cyan-500/20 text-cyan-500 dark:text-cyan-400 hover:bg-cyan-500/20 active:scale-95 transition-all flex items-center justify-center">
+                <RefreshCw size={16} />
+              </button>
+              <button onClick={disconnectBottle} className="w-10 h-10 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-500 dark:text-rose-400 hover:bg-rose-500/20 active:scale-95 transition-all flex items-center justify-center">
+                <LogOut size={16} />
+              </button>
             </div>
           ) : (
-            <p className="text-3xl font-black text-slate-800 dark:text-slate-100">{props.watchData.heartRate} <span className="text-lg text-slate-500 font-semibold">BPM</span></p>
+            <button onClick={connectBottle} disabled={isConnecting} className="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-white text-xs font-bold active:scale-95 transition-all disabled:opacity-50">
+              {isConnecting ? 'Đang quét...' : 'Kết nối'}
+            </button>
           )}
         </div>
       </div>
@@ -314,14 +452,7 @@ const HomeTab = (props: HomeTabProps) => {
                 <button onClick={() => { seedSampleWaterLogs(props.profile?.id); setIsMenuOpen(false); }} className="w-full flex items-center gap-3 p-4 rounded-2xl text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-800/50 hover:text-slate-900 dark:hover:text-white active:scale-95 transition-all duration-200 ease-out">
                   <Droplet size={18} className="text-blue-500 dark:text-blue-400" /> Seed Sample Data
                 </button>
-                <button onClick={toggleTheme} className="w-full flex items-center gap-3 p-4 rounded-2xl text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-800/50 hover:text-slate-900 dark:hover:text-white active:scale-95 transition-all duration-200 ease-out">
-                  {theme === 'dark' ? (
-                    <Moon size={18} className="text-indigo-400" />
-                  ) : (
-                    <Sun size={18} className="text-amber-400" />
-                  )}
-                  Giao diện Tối/Sáng
-                </button>
+
               </div>
               <div className="p-4 border-t border-slate-300 dark:border-white/5">
                 <button onClick={() => {
@@ -465,7 +596,6 @@ const HomeTab = (props: HomeTabProps) => {
         )}
       </AnimatePresence>
 
-      {/* QUICK AMOUNTS EDIT MODAL */}
       <AnimatePresence>
         {isEditingQuickAmounts && (
           <motion.div
@@ -567,6 +697,7 @@ const HomeTab = (props: HomeTabProps) => {
             </motion.div>
           </motion.div>
         )}
+
       </AnimatePresence>
 
       <AnimatePresence>
@@ -579,6 +710,18 @@ const HomeTab = (props: HomeTabProps) => {
           />
         )}
       </AnimatePresence>
+
+      <AnimatePresence>
+        {showGoalDetail && (
+          <HydrationGoalModal
+            isOpen={showGoalDetail}
+            onClose={() => setShowGoalDetail(false)}
+            waterIntake={props.waterIntake}
+            hydrationResult={props.hydrationResult}
+          />
+        )}
+      </AnimatePresence>
+
     </div>
   );
 };
