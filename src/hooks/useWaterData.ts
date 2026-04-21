@@ -1,7 +1,6 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
-import { runQuestEngine, runChallengeEngine } from '@/lib/questEngine';
 import type { QuestEngineContext } from '@/lib/questEngine';
 import { playWaterDropSound } from '@/lib/audio';
 import type { Profile } from '@/models';
@@ -9,7 +8,7 @@ import type { Profile } from '@/models';
 // ── Constants ──────────────────────────────────────────────
 
 const OFFLINE_QUEUE_KEY = 'digiwell_offline_water_queue';
-const EXP_PER_100ML     = 12;
+const EXP_PER_100ML     = 10; // Standardized EXP gain.
 
 // ── Types ──────────────────────────────────────────────────
 
@@ -41,16 +40,8 @@ interface OfflineQueueItem {
 const isRealUser = (id: unknown): id is string =>
   typeof id === 'string' && id.length >= 30;
 
-const calcExp = (amount: number, level: number = 1): number => {
-  // EXP per 100ml dựa trên level
-  let expPer100ml = EXP_PER_100ML;
-  if (level >= 30) expPer100ml = 15;
-  else if (level >= 20) expPer100ml = 10;
-  else if (level >= 10) expPer100ml = 7;
-  else expPer100ml = 5; // level 1-9
-
-  return Math.floor(amount / 100) * expPer100ml;
-};
+const calcExp = (amount: number): number => 
+  Math.floor(amount / 100) * EXP_PER_100ML;
 
 const toDateStr = (d = new Date()): string =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; // Local date
@@ -179,9 +170,7 @@ export function useWaterData(
       const actualAmount = Math.round(amount * factor);
       if (actualAmount <= 0) return;
 
-      // Get current level for exp calculation
-      const currentLevel = profile?.level || 1;
-      const exp    = calcExp(actualAmount, currentLevel);
+      const exp    = calcExp(actualAmount);
       const now    = new Date().toISOString();
       const today  = toDateStr();
       const tempId = `temp-${Date.now()}`;
@@ -218,8 +207,8 @@ export function useWaterData(
 
         toast.success(`💧 +${actualAmount}ml · ⚡ +${exp} EXP!`);
 
-        // Notify parent to refetch the definitive profile state from the database
-        await onWaterLogged?.();
+        // FIX: Truyền amount và exp để App.tsx có thể tính toán lại level ngay lập tức
+        await onWaterLogged?.(actualAmount, exp);
 
         // Clubs sync: fire & forget, không block UI
         syncToClubs(profile.id, actualAmount).catch(console.error);
@@ -240,7 +229,6 @@ export function useWaterData(
         });
 
         setHasPendingCloudSync(true);
-        toast.error('Da luu tam offline, se dong bo khi co mang');
       }
     },
     [profile?.id, onWaterLogged],
@@ -314,8 +302,7 @@ export function useWaterData(
       return;
     }
 
-    const currentLevel = profile?.level || 1;
-    const newExp      = calcExp(newAmount, currentLevel);
+    const newExp      = calcExp(newAmount);
     const snapshot = waterEntriesRef.current;
     // Tính delta để notify parent đúng số chênh lệch, không phải tổng mới
     const deltaAmount = newAmount - originalEntry.amount;
@@ -369,7 +356,11 @@ export function useWaterData(
       clearOfflineQueue();
       setHasPendingCloudSync(false);
       toast.success(`🔄 Đã đồng bộ ${payload.length} mục offline thành công!`);
-      await onWaterLogged?.();
+      // FIX: Tính tổng amount và exp từ queue đã đồng bộ để cập nhật UI
+      const totalAmountSynced = queue.reduce((sum, item) => sum + item.amount, 0);
+      const totalExpSynced = queue.reduce((sum, item) => sum + item.exp, 0);
+      await onWaterLogged?.(totalAmountSynced, totalExpSynced);
+
       fetchAllWater();
     } catch (err) {
       console.error('[useWaterData] syncOfflineLogs:', err);

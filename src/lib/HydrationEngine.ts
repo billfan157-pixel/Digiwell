@@ -172,9 +172,11 @@ export function calculateWaterIntake(input: WaterIntakeInput): WaterIntakeResult
       hot:       { ml: 600,  label: 'Nóng' },
       tropical:  { ml: 900,  label: 'Nhiệt đới nóng ẩm' },
     };
-    climateAdj = climateMap[climate].ml;
-    if (climate !== 'temperate') {
-      notes.push(`Khí hậu "${climateMap[climate].label}": điều chỉnh ${climateAdj > 0 ? '+' : ''}${climateAdj}ml/ngày`);
+    // FIX: Thêm chốt chặn an toàn cho climate, tương tự activityLevel
+    const safeClimate = climateMap[climate] ? climate : 'temperate';
+    climateAdj = climateMap[safeClimate].ml;
+    if (safeClimate !== 'temperate') {
+      notes.push(`Khí hậu "${climateMap[safeClimate].label}": điều chỉnh ${climateAdj > 0 ? '+' : ''}${climateAdj}ml/ngày`);
     }
   }
 

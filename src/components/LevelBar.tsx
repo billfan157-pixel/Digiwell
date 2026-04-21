@@ -1,6 +1,7 @@
 import React, { useMemo } from "react";
 import { motion } from "framer-motion";
 import { Star, ChevronRight, Sparkles } from "lucide-react";
+import { expRequiredForLevel, totalExpForLevel } from "../config/questConfig";
 
 interface LevelBarProps {
   level: number;
@@ -24,21 +25,15 @@ const LevelBar = ({
 }: LevelBarProps) => {
   const { progress, remainingExp, nextLevelExp, rankTitle, safeLevel } = useMemo(() => {
     const safeLevel = Math.max(level, 1);
-
-    // Simple logic: each level needs 500 EXP
-    const currentLevelExp = (safeLevel - 1) * 500;
-    const nextLevelExp = safeLevel * 500;
-
-    const rawProgress =
-      nextLevelExp > currentLevelExp
-        ? ((exp - currentLevelExp) / (nextLevelExp - currentLevelExp)) * 100
-        : 0;
-
-    const progress = Math.min(100, Math.max(0, rawProgress));
-    const remainingExp = Math.max(0, nextLevelExp - exp);
+    const expForCurrentLevelStart = totalExpForLevel(safeLevel);
+    const progressInLevel = exp - expForCurrentLevelStart;
+    const requiredExpForLevel = expRequiredForLevel(safeLevel);
+    const progress = requiredExpForLevel > 0 ? Math.min(100, (progressInLevel / requiredExpForLevel) * 100) : 0;
+    const nextLevelTotalExp = totalExpForLevel(safeLevel + 1);
+    const remainingExp = Math.max(0, nextLevelTotalExp - exp);
     const rankTitle = getRankTitle(safeLevel);
 
-    return { progress, remainingExp, nextLevelExp, rankTitle, safeLevel };
+    return { progress, remainingExp, nextLevelExp: nextLevelTotalExp, rankTitle, safeLevel };
   }, [level, exp]);
 
   return (

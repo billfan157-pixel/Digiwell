@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Star, Gift, Zap, Shield, Trophy } from 'lucide-react';
+import { expRequiredForLevel, totalExpForLevel } from '../config/questConfig';
 
 interface LevelDetailModalProps {
   isOpen: boolean;
@@ -30,11 +31,11 @@ function getRankTitle(level: number): string {
 export default function LevelDetailModal({ isOpen, onClose, level, exp }: LevelDetailModalProps) {
   const { progress, remainingExp, currentLevelExp, nextLevelExp, rankTitle, safeLevel } = useMemo(() => {
     const safeLevel = Math.max(level, 1);
-    // Simple logic: each level needs 500 EXP
-    const currentLevelExp = (safeLevel - 1) * 500;
-    const nextLevelExp = safeLevel * 500;
-    const rawProgress = nextLevelExp > currentLevelExp ? ((exp - currentLevelExp) / (nextLevelExp - currentLevelExp)) * 100 : 0;
-    const progress = Math.min(100, Math.max(0, rawProgress));
+    const currentLevelExp = totalExpForLevel(safeLevel);
+    const progressInLevel = exp - currentLevelExp;
+    const requiredExpForLevel = expRequiredForLevel(safeLevel);
+    const progress = requiredExpForLevel > 0 ? Math.min(100, (progressInLevel / requiredExpForLevel) * 100) : 0;
+    const nextLevelExp = totalExpForLevel(safeLevel + 1);
     const remainingExp = Math.max(0, nextLevelExp - exp);
     const rankTitle = getRankTitle(safeLevel);
     return { progress, remainingExp, currentLevelExp, nextLevelExp, rankTitle, safeLevel };
