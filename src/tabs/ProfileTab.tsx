@@ -4,6 +4,7 @@ import { PostCard } from './FeedTab';
 import BadgesGrid from '../components/BadgesGrid';
 import CountUp from '../components/CountUp';
 import { toast } from 'sonner';
+import { expRequiredForLevel, totalExpForLevel } from '../config/questConfig';
 
 interface ProfileTabProps {
   profile: any;
@@ -133,15 +134,33 @@ export default function ProfileTab({
 
               {/* THANH EXP / CẤP ĐỘ */}
               <div className="mt-5">
-                <div className="flex justify-between items-end mb-1.5">
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Tiến độ cấp độ</span>
-                  <span className="text-xs font-black text-cyan-500 dark:text-cyan-400">LV.{profile?.level || 1} <span className="text-slate-500 text-[10px] font-mono">({(profile?.total_exp || 0) % 500}/500)</span></span>
-                </div>
-                <div className="h-2 w-full bg-slate-300 dark:bg-slate-800 rounded-full overflow-hidden border border-slate-300 dark:border-slate-700/50">
-                  <div 
-                    className="h-full bg-gradient-to-r from-cyan-500 to-blue-500 rounded-full transition-all duration-1000 relative"
-                    style={{ width: `${(((profile?.total_exp || 0) % 500) / 500) * 100}%` }}
-                  >
+                {(() => {
+                  const currentLevel = profile?.level || 1;
+                  const totalExp = profile?.total_exp || 0;
+                  const currentLevelExp = totalExpForLevel(currentLevel - 1); // EXP đã tích lũy đến level trước
+                  const progressExp = totalExp - currentLevelExp; // EXP trong level hiện tại
+                  const requiredExp = expRequiredForLevel(currentLevel);
+                  const progressPercent = Math.min((progressExp / requiredExp) * 100, 100);
+
+                  return (
+                    <>
+                      <div className="flex justify-between items-end mb-1.5">
+                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Tiến độ cấp độ</span>
+                        <span className="text-xs font-black text-cyan-500 dark:text-cyan-400">LV.{currentLevel} <span className="text-slate-500 text-[10px] font-mono">({progressExp}/{requiredExp})</span></span>
+                      </div>
+                        <div className="h-2 w-full bg-slate-300 dark:bg-slate-800 rounded-full overflow-hidden border border-slate-300 dark:border-slate-700/50">
+                          <div
+                            className="h-full bg-gradient-to-r from-cyan-500 to-blue-500 rounded-full transition-all duration-1000 relative"
+                            style={{ width: `${progressPercent}%` }}
+                          >
+                            <div className="absolute inset-0 bg-white/20 animate-[shimmer_1.5s_infinite] -skew-x-12" />
+                          </div>
+                        </div>
+                      </div>
+                    </>
+                  );
+                })()}
+              </div>
                     <div className="absolute inset-0 bg-white/20 animate-[shimmer_1.5s_infinite] -skew-x-12" />
                   </div>
                 </div>

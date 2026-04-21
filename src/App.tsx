@@ -17,6 +17,7 @@ import {
 import { scanDrinkFromImage, isAiConfigured } from '@/lib/ai';
 import type { HealthReport } from '@/lib/aiReports';
 import { generateWeeklyReport, getLatestHealthReport } from '@/lib/aiReports';
+import { levelFromExp } from '@/config/questConfig';
 import UpgradeModal from '@/components/modals/UpgradeModal';
 import { runQuestEngine, runChallengeEngine, type QuestEngineContext } from '@/lib/questEngine';
 // @ts-ignore
@@ -433,7 +434,8 @@ function AppContent() {
           total_water: (prev.total_water || 0) + optimisticAmount,
           total_exp: (prev.total_exp || 0) + optimisticExp
         };
-        updated.level = Math.floor(updated.total_exp / 500) + 1; // Tính dự kiến Level
+        // Tính level dựa trên total_exp với progression curve
+        updated.level = levelFromExp(updated.total_exp);
         if (updated.id && updated.id !== 'undefined') {
           localStorage.setItem('cached_profile', JSON.stringify(updated));
         }
@@ -444,7 +446,7 @@ function AppContent() {
         const currentProfile = profile;
         if (currentProfile && currentProfile.id !== 'undefined') {
           const newExp = (currentProfile.total_exp || 0) + optimisticExp;
-          const newLevel = Math.floor(newExp / 500) + 1;
+          const newLevel = levelFromExp(newExp);
           const { error } = await supabase.from('profiles').update({
             total_exp: newExp,
             level: newLevel,
