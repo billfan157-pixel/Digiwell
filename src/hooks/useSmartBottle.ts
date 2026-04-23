@@ -31,9 +31,9 @@ interface ProfileBottleState {
 }
 
 interface HydrationRpcResponse {
-  added_exp?: number;
-  new_total_exp?: number;
-  new_coins?: number;
+  exp_gained?: number;
+  total_exp?: number;
+  coins_gained?: number;
 }
 
 const HYDRATION_EVENT_NAME = 'hydrationEvent';
@@ -151,8 +151,8 @@ export const useSmartBottle = (userId: string | undefined, deviceId: string, cap
 
     try {
       const { data, error } = await supabase.rpc('process_hydration_event', {
-        user_id: userId,
-        amount_ml: amount,
+        p_user_id: userId,
+        p_amount_ml: amount,
       });
 
       if (error) throw error;
@@ -171,6 +171,20 @@ export const useSmartBottle = (userId: string | undefined, deviceId: string, cap
         console.error('Lỗi lưu last_bottle_volume:', profileUpdateError);
       }
 
+      // Ghi lịch sử vào water_logs để đồng bộ với ứng dụng
+      const today = new Date();
+      const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+      
+      const { data: insertedLog, error: logError } = await supabase.from('water_logs').insert({
+        user_id: userId,
+        amount: amount,
+        name: 'DigiBottle',
+        exp: rpcData.exp_gained ?? 0,
+        day: todayStr,
+      }).select('id, created_at').single();
+
+      if (logError) console.error('Lỗi lưu water_logs:', logError);
+
       setSyncLogs(prev => [
         { id: Date.now().toString(), timestamp: new Date(), action: 'drink', amountChange: amount },
         ...prev,
@@ -181,12 +195,13 @@ export const useSmartBottle = (userId: string | undefined, deviceId: string, cap
           source: 'smart_bottle',
           amount_ml: amount,
           current_volume: nextVolume,
-          added_exp: rpcData.added_exp ?? 0,
-          new_total_exp: rpcData.new_total_exp ?? 0,
-          new_coins: rpcData.new_coins ?? 0,
+          added_exp: rpcData.exp_gained ?? 0,
+          new_total_exp: rpcData.total_exp ?? 0,
+          new_coins: rpcData.coins_gained ?? 0,
           refresh_profile: true,
           refresh_water: true,
-          occurred_at: new Date().toISOString(),
+          occurred_at: insertedLog?.created_at || new Date().toISOString(),
+          log_id: insertedLog?.id,
         },
       }));
     } catch (error) {

@@ -316,6 +316,7 @@ export function BottleVisualizer({
       <AnimatePresence>
         {isConnected && (
           <motion.div
+            key="ambient-glow"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}

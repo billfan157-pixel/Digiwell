@@ -1,5 +1,5 @@
 import type { WaterLog } from '@/hooks/useWaterData';
-import { History, Loader2, X, Edit2, Check } from 'lucide-react';
+import { History, Loader2, X, Edit2, Check, Bluetooth } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useState } from 'react';
 
@@ -41,8 +41,8 @@ export function RecentActivity({ waterEntries, handleDeleteEntry, handleEditEntr
       </div>
       <div className="space-y-2">
         <AnimatePresence>
-          {recentEntries.map(entry => (
-            <motion.div key={entry.id} layout initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, x: -20 }} className="bg-slate-800/60 border border-slate-700/50 rounded-xl p-3 flex justify-between items-center">
+          {recentEntries.map((entry, index) => (
+            <motion.div key={entry.id || `recent-${index}`} layout initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, x: -20 }} className="bg-slate-800/60 border border-slate-700/50 rounded-xl p-3 flex justify-between items-center">
               {editingId === entry.id ? (
                 <div className="flex items-center gap-3 w-full">
                   <input 
@@ -65,8 +65,17 @@ export function RecentActivity({ waterEntries, handleDeleteEntry, handleEditEntr
               ) : (
                 <>
                   <div className="flex-1">
-                    <p className="text-sm text-slate-300">{entry.name} <span className="font-bold text-white">{entry.amount}ml</span></p>
-                    <p className="text-xs text-slate-500">{new Date(entry.created_at).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}</p>
+                    <p className="text-sm text-slate-300 flex items-center gap-1.5">
+                      {entry.name === 'DigiBottle' ? (
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-cyan-400 bg-cyan-500/10 border border-cyan-500/20 px-1.5 py-0.5 rounded flex items-center gap-1">
+                          <Bluetooth size={10} /> DigiBottle
+                        </span>
+                      ) : (
+                        <span>{entry.name}</span>
+                      )}
+                      <span className="font-bold text-white">{entry.amount}ml</span>
+                    </p>
+                    <p className="text-xs text-slate-500 mt-0.5">{new Date(entry.created_at).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}</p>
                   </div>
                   <div className="flex gap-1">
                     {handleEditEntry && (

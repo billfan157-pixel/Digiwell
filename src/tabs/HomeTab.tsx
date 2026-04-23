@@ -1,4 +1,4 @@
-import { Droplet, Coffee, Activity, Zap, Camera, History, Share2, LayoutGrid, Plus, LogOut, Settings, CloudSun, Heart, X, Menu, User, ChevronLeft, Edit2, ChevronRight, Clock, Coins, Bluetooth, BatteryFull, ScrollText } from 'lucide-react';
+import { Droplet, Coffee, Activity, Zap, Camera, History, Share2, LayoutGrid, Plus, LogOut, Settings, CloudSun, Heart, X, Menu, User, RefreshCw, ChevronLeft, Edit2, ChevronRight, Clock, Coins, Bluetooth, BatteryFull, ScrollText, Smartphone } from 'lucide-react';
 import { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
@@ -7,11 +7,16 @@ import { useUIStore } from '../store/useUIStore';
 import LevelBar from '../components/LevelBar';
 import LevelDetailModal from './LevelDetailModal';
 import { seedSampleWaterLogs } from '../hooks/useWaterData';
-import type { WaterLog } from '../hooks/useWaterData';
 import { supabase } from '../lib/supabase';
 import CountUp from '../components/CountUp';
 import HomeHydrationHero from '../components/home/HomeHydrationHero';
 import HydrationGoalModal from '../components/modals/HydrationGoalModal';
+import AnimatedCounter from '../components/AnimatedCounter';
+import LiquidProgress from '../components/LiquidProgress';
+import ConfettiParticles from '../components/ConfettiParticles';
+import AvatarFrame from '../components/AvatarFrame';
+import type { Profile } from '../models';
+import type { WaterLog } from '../models';
 // import { WaterProgress } from '../hooks/WaterProgress';
 // import { QuickActions } from '../hooks/QuickActions';
 
@@ -93,14 +98,23 @@ function RecentActivity(props: {
       </div>
       
       <div className="space-y-2">
-        {recentEntries.map((entry: any) => (
-          <div key={entry.id} className="group flex items-center justify-between p-2.5 bg-slate-200/50 dark:bg-slate-900/60 backdrop-blur-md border border-slate-300 dark:border-white/10 rounded-2xl hover:border-cyan-500/30 dark:hover:border-cyan-500/20 transition-colors">
+        {recentEntries.map((entry: WaterLog, index: number) => (
+          <div key={entry.id || `recent-${index}`} className="group flex items-center justify-between p-2.5 bg-slate-200/50 dark:bg-slate-900/60 backdrop-blur-md border border-slate-300 dark:border-white/10 rounded-2xl hover:border-cyan-500/30 dark:hover:border-cyan-500/20 transition-colors">
             <div className="flex items-center gap-3">
               <div className={`w-9 h-9 rounded-lg flex items-center justify-center ${presetStyles[entry.color || 'cyan']?.bg || presetStyles.cyan.bg} ${presetStyles[entry.color || 'cyan']?.border || presetStyles.cyan.border}`}>
                 {renderIcon(entry.icon || 'Droplet', { size: 18, className: presetStyles[entry.color || 'cyan']?.text || presetStyles.cyan.text })}
               </div>
               <div>
-                <p className="text-sm font-bold text-slate-800 dark:text-white">{entry.name}</p>
+                <div className="flex items-center gap-1.5">
+                  <p className="text-sm font-bold text-slate-800 dark:text-white">
+                    {entry.name === 'DigiBottle' ? 'Nước lọc' : entry.name}
+                  </p>
+                  {entry.name === 'DigiBottle' && (
+                    <span className="text-[9px] font-bold uppercase tracking-wider text-cyan-500 dark:text-cyan-400 bg-cyan-500/10 px-1.5 py-0.5 rounded border border-cyan-500/20 flex items-center gap-0.5">
+                      <Bluetooth size={8} /> DigiBottle
+                    </span>
+                  )}
+                </div>
                 <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">{formatWaterEntryTime(entry)}</p>
               </div>
             </div>
@@ -118,7 +132,7 @@ function RecentActivity(props: {
 }
 
 interface HomeTabProps {
-  profile: any;
+  profile: Profile | null;
   nowText: { date: string; time: string };
   hasPendingCloudSync: boolean;
   waterIntake: number;
@@ -148,15 +162,16 @@ interface HomeTabProps {
   setCustomDrinkForm: React.Dispatch<React.SetStateAction<{ name: string; amount: number | string; factor: number }>>;
   customDrinkForm: { name: string; amount: number | string; factor: number };
   setEditingPresets: (presets: DrinkPreset[]) => void;
-  weatherData?: any;
-  watchData?: any;
-  weeklyHistory?: any[];
+  weatherData?: { temp: number; status: string; location?: string } | null;
+  watchData?: { heartRate: number; steps: number } | null;
+  weeklyHistory?: { d: string; ml: number; isToday: boolean }[];
   waterEntries?: WaterLog[];
   handleDeleteEntry?: (id: unknown) => Promise<void>;
   handleEditEntry?: (id: string, newAmount: number) => Promise<void>;
-  setActiveTab: (tab: any) => void;
+  setActiveTab: (tab: string) => void;
   isSyncing?: boolean;
   setShowShopModal: (show: boolean) => void;
+  setShowBattleArena: (show: boolean) => void;
   setShowQuestModal: (show: boolean) => void;
   hydrationResult?: any;
   smartBottle: any;
@@ -178,7 +193,7 @@ const HomeTab = (props: HomeTabProps) => {
   const [showLevelDetail, setShowLevelDetail] = useState(false);
   const [showGoalDetail, setShowGoalDetail] = useState(false);
 
-  const { isSyncing: isConnecting, isConnected, metrics, connectDevice: connectBottle, disconnectDevice: disconnectBottle } = props.smartBottle;
+  const { isSyncing: isConnecting, isConnected, metrics, connectDevice: connectBottle, disconnectDevice: disconnectBottle, forceSync: syncData } = props.smartBottle;
   const batteryLevel = metrics?.batteryLevel || 0;
   // Lấy dữ liệu bình trực tiếp từ Hook đã đồng bộ
   const equippedBottle = props.smartBottle.equippedBottle;
@@ -197,14 +212,14 @@ const HomeTab = (props: HomeTabProps) => {
       if (saved) {
         const parsed = JSON.parse(saved);
         // Sanitize: Loại bỏ các item có id rỗng hoặc null khỏi localStorage
-        const valid = parsed.filter((d: any) => d && d.id && String(d.id).trim() !== '');
+        const valid = parsed.filter((d: DrinkPreset) => d && d.id && String(d.id).trim() !== '');
         if (valid.length !== parsed.length) localStorage.setItem('digiwell_drink_grid', JSON.stringify(valid));
         return valid;
       }
       const oldCustom = localStorage.getItem('digiwell_custom_drinks'); 
       if (oldCustom) {
         const parsedOld = JSON.parse(oldCustom);
-        const validOld = parsedOld.filter((d: any) => d && d.id && String(d.id).trim() !== '');
+        const validOld = parsedOld.filter((d: DrinkPreset) => d && d.id && String(d.id).trim() !== '');
         return [...DEFAULT_GRID_DRINKS, ...validOld];
       }
       return DEFAULT_GRID_DRINKS;
@@ -214,6 +229,16 @@ const HomeTab = (props: HomeTabProps) => {
   useEffect(() => {
     localStorage.setItem('digiwell_drink_grid', JSON.stringify(drinkGridList));
   }, [drinkGridList]);
+
+  // Lắng nghe sự kiện từ Widget (Deep Link)
+  useEffect(() => {
+    const handleOpenMenu = () => setIsDrinkMenuOpen(true);
+    window.addEventListener('openDrinkMenuFromWidget', handleOpenMenu);
+    return () => window.removeEventListener('openDrinkMenuFromWidget', handleOpenMenu);
+  }, []);
+
+  const percentage = Math.min((props.waterIntake / (props.waterGoal || 1)) * 100, 100);
+  const isGoalReached = props.waterIntake >= props.waterGoal && props.waterGoal > 0;
 
   return (
     <div className="space-y-6 animate-in fade-in zoom-in duration-300 pb-10">
@@ -229,8 +254,8 @@ const HomeTab = (props: HomeTabProps) => {
           <button onClick={props.handleScan} disabled={props.isScanning} className="w-10 h-10 rounded-full bg-slate-200/50 dark:bg-slate-900/60 backdrop-blur-xl border border-slate-300 dark:border-white/5 flex items-center justify-center text-cyan-500 dark:text-cyan-400 hover:bg-cyan-500/20 active:scale-95 transition-all duration-200 ease-out disabled:opacity-50">
             <Camera size={18} />
           </button>
-          <button onClick={() => setIsMenuOpen(true)} className="w-10 h-10 rounded-full bg-slate-200/50 dark:bg-slate-900/60 backdrop-blur-xl border border-slate-300 dark:border-white/5 flex items-center justify-center text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white active:scale-95 transition-all duration-200 ease-out">
-            <Menu size={18} />
+          <button onClick={() => setIsMenuOpen(true)} className="rounded-full active:scale-95 transition-all duration-200 ease-out flex items-center justify-center">
+            <AvatarFrame size="sm" level={props.profile?.level || 1} avatarUrl={props.profile?.avatar_url ?? null} nickname={props.profile?.nickname} showBadge={false} />
           </button>
         </div>
       </div>
@@ -247,9 +272,14 @@ const HomeTab = (props: HomeTabProps) => {
             <span className="text-amber-600 dark:text-amber-400 font-black text-xs"><CountUp value={props.profile?.coins || 0} /></span>
           </button>
         </div>
-        <button onClick={() => props.setShowQuestModal(true)} className="flex items-center gap-1.5 bg-purple-500/10 px-3 py-1.5 rounded-xl border border-purple-500/20 text-purple-600 dark:text-purple-400 hover:bg-purple-500/20 active:scale-95 transition-all font-bold text-xs">
-          <ScrollText size={14} /> Nhiệm vụ
-        </button>
+        <div className="flex items-center gap-2">
+          <button onClick={() => props.setShowBattleArena(true)} className="flex items-center gap-1.5 bg-rose-500/10 px-3 py-1.5 rounded-xl border border-rose-500/20 text-rose-600 dark:text-rose-400 hover:bg-rose-500/20 active:scale-95 transition-all font-bold text-xs">
+            ⚔️ Đấu
+          </button>
+          <button onClick={() => props.setShowQuestModal(true)} className="flex items-center gap-1.5 bg-purple-500/10 px-3 py-1.5 rounded-xl border border-purple-500/20 text-purple-600 dark:text-purple-400 hover:bg-purple-500/20 active:scale-95 transition-all font-bold text-xs">
+            <ScrollText size={14} /> Quest
+          </button>
+        </div>
       </div>
 
       {/* Gamification: Level Bar */}
@@ -264,19 +294,43 @@ const HomeTab = (props: HomeTabProps) => {
         <div className="h-[168px] bg-slate-900/60 border border-white/5 rounded-3xl p-5 mb-6 shadow-xl animate-pulse" />
       )}
 
+      {/* HIỆU ỨNG NỔ PHÁO GIẤY KHI ĐẠT MỤC TIÊU */}
+      <ConfettiParticles trigger={isGoalReached} />
+
       {/* CORE HYDRATION VISUALIZER */}
-      <HomeHydrationHero
-        isConnected={isConnected}
-        isConnecting={isConnecting}
-        metrics={metrics}
-        equippedBottleSkin={equippedBottle}
-        waterIntake={props.waterIntake}
-        waterGoal={props.waterGoal}
-        progress={props.progress}
-        bottleCapacity={750}
-        onConnectBottle={connectBottle}
-        onOpenGoalDetail={() => setShowGoalDetail(true)}
-      />
+      {!isConnected ? (
+        <div className="relative my-8 flex flex-col items-center justify-center cursor-pointer active:scale-95 transition-transform" onClick={() => setShowGoalDetail(true)}>
+          <LiquidProgress percentage={percentage} />
+          
+          <div className="absolute text-center z-10 drop-shadow-lg pointer-events-none flex flex-col items-center">
+            <h2 className="text-4xl font-black text-slate-800 dark:text-white flex items-baseline justify-center">
+              <AnimatedCounter value={props.waterIntake} /> 
+              <span className="text-xl ml-1 text-slate-500 dark:text-slate-300">ml</span>
+            </h2>
+            <p className="text-xs text-cyan-600 dark:text-cyan-400 mt-1 font-bold uppercase tracking-widest">
+              Mục tiêu: {props.waterGoal} ml
+            </p>
+            {percentage >= 100 && (
+               <div className="mt-3 px-3 py-1 bg-emerald-500/20 border border-emerald-500/50 rounded-full">
+                 <span className="text-[10px] font-black text-emerald-500 uppercase tracking-widest">Hoàn thành mục tiêu</span>
+               </div>
+            )}
+          </div>
+        </div>
+      ) : (
+        <HomeHydrationHero
+          isConnected={isConnected}
+          isConnecting={isConnecting}
+          metrics={metrics}
+          equippedBottleSkin={equippedBottle}
+          waterIntake={props.waterIntake}
+          waterGoal={props.waterGoal}
+          progress={props.progress}
+          bottleCapacity={750}
+          onConnectBottle={connectBottle}
+          onOpenGoalDetail={() => setShowGoalDetail(true)}
+        />
+      )}
 
       {!isConnected && (
         <div className="mt-2">
@@ -408,9 +462,14 @@ const HomeTab = (props: HomeTabProps) => {
         </div>
         <div>
           {isConnected ? (
-            <button onClick={disconnectBottle} className="w-10 h-10 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-500 dark:text-rose-400 hover:bg-rose-500/20 active:scale-95 transition-all flex items-center justify-center">
-              <LogOut size={16} />
-            </button>
+            <div className="flex gap-2">
+              <button onClick={syncData} className="w-10 h-10 rounded-xl bg-cyan-500/10 border border-cyan-500/20 text-cyan-500 dark:text-cyan-400 hover:bg-cyan-500/20 active:scale-95 transition-all flex items-center justify-center">
+                <RefreshCw size={16} />
+              </button>
+              <button onClick={disconnectBottle} className="w-10 h-10 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-500 dark:text-rose-400 hover:bg-rose-500/20 active:scale-95 transition-all flex items-center justify-center">
+                <LogOut size={16} />
+              </button>
+            </div>
           ) : (
             <button onClick={connectBottle} disabled={isConnecting} className="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-white text-xs font-bold active:scale-95 transition-all disabled:opacity-50">
               {isConnecting ? 'Đang quét...' : 'Kết nối'}
@@ -422,7 +481,7 @@ const HomeTab = (props: HomeTabProps) => {
       {/* MAIN MENU SIDEBAR */}
       <AnimatePresence>
         {isMenuOpen && (
-          <div className="fixed inset-0 z-[100] flex justify-end">
+          <div key="main-menu-sidebar" className="fixed inset-0 z-[100] flex justify-end">
             <div className="absolute inset-0 bg-black/40 dark:bg-slate-950/60 backdrop-blur-sm transition-opacity" onClick={() => setIsMenuOpen(false)} />
             <motion.div 
               initial={{ x: '100%' }}
@@ -444,7 +503,7 @@ const HomeTab = (props: HomeTabProps) => {
                 <button onClick={() => { setIsMenuOpen(false); setShowProfileSettings(true); }} className="w-full flex items-center gap-3 p-4 rounded-2xl text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-800/50 hover:text-slate-900 dark:hover:text-white active:scale-95 transition-all duration-200 ease-out">
                   <Settings size={18} className="text-slate-500 dark:text-slate-400" /> Cài đặt
                 </button>
-                <button onClick={() => { seedSampleWaterLogs(props.profile?.id); setIsMenuOpen(false); }} className="w-full flex items-center gap-3 p-4 rounded-2xl text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-800/50 hover:text-slate-900 dark:hover:text-white active:scale-95 transition-all duration-200 ease-out">
+                <button onClick={() => { seedSampleWaterLogs(props.profile?.id || ''); setIsMenuOpen(false); }} className="w-full flex items-center gap-3 p-4 rounded-2xl text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-800/50 hover:text-slate-900 dark:hover:text-white active:scale-95 transition-all duration-200 ease-out">
                   <Droplet size={18} className="text-blue-500 dark:text-blue-400" /> Seed Sample Data
                 </button>
 
@@ -470,7 +529,18 @@ const HomeTab = (props: HomeTabProps) => {
           <div key="drink-menu-modal" className="fixed inset-0 z-[100] flex flex-col justify-end">
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-slate-950/60 backdrop-blur-sm" onClick={() => setIsDrinkMenuOpen(false)} />
             
-            <motion.div initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} transition={{ type: "spring", damping: 25, stiffness: 200 }} className="relative w-full bg-slate-900/90 backdrop-blur-xl border-t border-white/5 rounded-t-3xl shadow-[0_-10px_40px_rgba(0,0,0,0.5)] p-6">
+            <motion.div 
+              initial={{ y: '100%' }} 
+              animate={{ y: 0 }} 
+              exit={{ y: '100%' }} 
+              transition={{ type: "spring", damping: 25, stiffness: 200 }} 
+              drag="y" dragConstraints={{ top: 0 }} dragElastic={0.2}
+              onDragEnd={(e, { offset, velocity }) => {
+                if (offset.y > 100 || velocity.y > 500) { setIsDrinkMenuOpen(false); setIsCustomMode(false); }
+              }}
+              className="relative w-full bg-slate-900/90 backdrop-blur-xl border-t border-white/5 rounded-t-3xl shadow-[0_-10px_40px_rgba(0,0,0,0.5)] p-6 pt-4"
+            >
+              <div className="w-12 h-1.5 bg-white/20 rounded-full mx-auto mb-4 shrink-0" />
               <div className="flex items-center justify-between mb-6">
                 <div>
                   <h2 className="text-white font-black text-xl">{isCustomMode ? 'Tạo đồ uống mới' : 'Thêm thức uống'}</h2>
@@ -594,6 +664,7 @@ const HomeTab = (props: HomeTabProps) => {
       <AnimatePresence>
         {isEditingQuickAmounts && (
           <motion.div
+            key="editing-quick-amounts"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
@@ -695,27 +766,21 @@ const HomeTab = (props: HomeTabProps) => {
 
       </AnimatePresence>
 
-      <AnimatePresence>
-        {showLevelDetail && props.profile && (
-          <LevelDetailModal
-            isOpen={showLevelDetail}
-            onClose={() => setShowLevelDetail(false)}
-            level={props.profile.level || 1}
-            exp={props.profile.total_exp || 0}
-          />
-        )}
-      </AnimatePresence>
+      {props.profile && (
+        <LevelDetailModal
+          isOpen={showLevelDetail}
+          onClose={() => setShowLevelDetail(false)}
+          level={props.profile.level || 1}
+          exp={props.profile.total_exp || 0}
+        />
+      )}
 
-      <AnimatePresence>
-        {showGoalDetail && (
-          <HydrationGoalModal
-            isOpen={showGoalDetail}
-            onClose={() => setShowGoalDetail(false)}
-            waterIntake={props.waterIntake}
-            hydrationResult={props.hydrationResult}
-          />
-        )}
-      </AnimatePresence>
+      <HydrationGoalModal
+        isOpen={showGoalDetail}
+        onClose={() => setShowGoalDetail(false)}
+        waterIntake={props.waterIntake}
+        hydrationResult={props.hydrationResult}
+      />
 
     </div>
   );

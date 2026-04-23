@@ -7,6 +7,7 @@ interface AvatarFrameProps {
   avatarUrl: string | null;
   size?: 'sm' | 'md' | 'lg' | 'xl';
   showBadge?: boolean;
+  nickname?: string;
 }
 
 export function getRankTitle(level: number): string {
@@ -28,7 +29,7 @@ export const getFrameEffects = (level: number) => {
     textColor: "text-slate-400",
     badgeColor: "bg-slate-700",
     frameClasses: "border-slate-700 shadow-none",
-    effects: <></>,
+    effects: null as React.ReactNode,
   };
 
   // Cấp 15-29: Người Kiên Trì - Border sáng nhẹ
@@ -38,7 +39,7 @@ export const getFrameEffects = (level: number) => {
       textColor: "text-blue-400",
       badgeColor: "bg-blue-900",
       frameClasses: "border-blue-700/50 shadow-[0_0_10px_rgba(59,130,246,0.3)]",
-      effects: <></>,
+      effects: null,
     };
   }
 
@@ -49,7 +50,7 @@ export const getFrameEffects = (level: number) => {
       textColor: "text-blue-200",
       badgeColor: "bg-gradient-to-br from-blue-700 to-indigo-800",
       frameClasses: "border-blue-600 shadow-[0_0_15px_rgba(37,99,235,0.5)]",
-      effects: <></>,
+      effects: null,
     };
   }
 
@@ -63,6 +64,7 @@ export const getFrameEffects = (level: number) => {
       effects: (
         // Hiệu ứng hào quang tím tỏa ra
         <motion.div
+          key="purple-aura"
           animate={{ scale: [1, 1.1, 1], opacity: [0.5, 0.8, 0.5] }}
           transition={{ repeat: Infinity, duration: 3 }}
           className="absolute -inset-1 rounded-full bg-purple-500/20 blur-lg"
@@ -81,6 +83,7 @@ export const getFrameEffects = (level: number) => {
       effects: (
         // Hiệu ứng "tia sét" vàng chạy quanh
         <motion.div
+          key="gold-lightning"
           animate={{ rotate: 360 }}
           transition={{ repeat: Infinity, duration: 5, ease: "linear" }}
           className="absolute -inset-2 rounded-full border-2 border-dashed border-amber-300/60 blur-[1px]"
@@ -98,23 +101,26 @@ export const getFrameEffects = (level: number) => {
       frameClasses: "border-cyan-300 shadow-[0_0_25px_rgba(34,211,238,0.9)]",
       effects: (
         // Hiệu ứng "dòng nước" xoáy quanh Avatar
-        <>
+        <div key="water-god-aura" className="absolute inset-0 pointer-events-none">
           <motion.div
+            key="water-ring-1"
             animate={{ rotate: [0, -360] }}
             transition={{ repeat: Infinity, duration: 8, ease: "linear" }}
             className="absolute -inset-3 rounded-full border-2 border-cyan-400/60 blur-[2px]"
           />
           <motion.div
+            key="water-ring-2"
             animate={{ scale: [1, 1.1, 1], rotate: 360 }}
             transition={{ repeat: Infinity, duration: 4, ease: "easeInOut" }}
             className="absolute -inset-2 rounded-full border border-blue-500/80 blur-[3px]"
           />
           <motion.div
+            key="water-glow"
             animate={{ opacity: [0.4, 0.8, 0.4] }}
             transition={{ repeat: Infinity, duration: 2 }}
             className="absolute -inset-1.5 rounded-full bg-cyan-400/20 blur-xl"
           />
-        </>
+        </div>
       ),
     };
   }
@@ -137,7 +143,7 @@ const imageSizeClasses = {
 };
 
 // Component chính
-export default function AvatarFrame({ level, avatarUrl, size = 'md', showBadge = true }: AvatarFrameProps) {
+export default function AvatarFrame({ level, avatarUrl, size = 'md', showBadge = true, nickname }: AvatarFrameProps) {
   const { frameClasses, badgeColor, textColor, effects } = getFrameEffects(level);
   const currentSize = sizeClasses[size];
   const imageSize = imageSizeClasses[size];
@@ -146,16 +152,18 @@ export default function AvatarFrame({ level, avatarUrl, size = 'md', showBadge =
     <div className={`relative ${currentSize} flex items-center justify-center`}>
       {/* 1. Hiệu ứng động bọc ngoài cùng (Chỉ có ở Rank cao) */}
       <AnimatePresence>
-        {effects}
+        {effects && React.cloneElement(effects as React.ReactElement, { key: "avatar-effects-wrapper" })}
       </AnimatePresence>
 
       {/* 2. Khung chính chứa Avatar */}
-      <div className={`relative w-full h-full rounded-full p-[3px] bg-slate-950 z-10 ${frameClasses} transition-all`}>
-        <img 
-          src={avatarUrl || "/default-avatar.png"} 
-          alt="avatar" 
-          className={`rounded-full object-cover ${imageSize}`} 
-        />
+      <div className={`relative w-full h-full rounded-full p-[3px] bg-slate-950 z-10 ${frameClasses} transition-all flex items-center justify-center overflow-hidden`}>
+        {avatarUrl ? (
+          <img src={avatarUrl} alt="avatar" className="rounded-full object-cover w-full h-full" />
+        ) : (
+          <span className="font-black text-cyan-400" style={{ fontSize: size === 'sm' ? '1.25rem' : size === 'md' ? '1.75rem' : '2.5rem' }}>
+            {(nickname || 'U').charAt(0).toUpperCase()}
+          </span>
+        )}
         
         {/* 3. Badge hiển thị số Level và Danh hiệu */}
         {showBadge && (

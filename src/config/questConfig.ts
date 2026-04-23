@@ -66,19 +66,32 @@ export const RANKS: Record<RankTier, RankInfo> = {
 // ── EXP per level thresholds ───────────────────────────────
 
 // Trả về EXP cần để lên từ level hiện tại → level tiếp theo
-// Công thức: 150 × (1.2^(level-1)) × (1 + floor((level-1)/10) × 0.5)
-// Làm tròn lên bội số 50 để đẹp số
+// Công thức E(L) = 100 * L^k
+// Với k thay đổi theo giai đoạn Level
 export function expRequiredForLevel(level: number): number {
-  if (level <= 1) return 150; // Level 1 không cần exp
+  let k = 1.1;
+  if (level <= 10) {
+    k = 1.1; // Cấp 1 - 10 (Dễ)
+  } else if (level <= 20) {
+    k = 1.3; // Cấp 11 - 20 (Hơi khó)
+  } else if (level <= 40) {
+    k = 1.6; // Cấp 21 - 40 (Khó)
+  } else {
+    k = 2.0; // Cấp 41+ (Rất khó)
+  }
 
-  const base = 150;
-  const growthRate = 1.2; // Tăng từ 1.15 → 1.2 (khó hơn)
-  const bonusMultiplier = 1 + Math.floor((level - 1) / 10) * 0.5;
+  const rawExp = 100 * Math.pow(level, k);
 
-  const rawExp = base * Math.pow(growthRate, level - 1) * bonusMultiplier;
+  // Làm tròn đến hàng chục (VD: 1258 -> 1260)
+  return Math.round(rawExp / 10) * 10;
+}
 
-  // Làm tròn lên bội số 50
-  return Math.ceil(rawExp / 50) * 50;
+// Tính toán lượng EXP nhận được khi uống nước dựa trên Level (Dynamic EXP Gain)
+export function expGainedForWater(ml: number, level: number): number {
+  if (level <= 10) return Math.floor(ml * 0.10);
+  if (level <= 20) return Math.floor(ml * 0.12);
+  if (level <= 30) return Math.floor(ml * 0.15);
+  return Math.floor(ml * 0.20);
 }
 
 // Tổng EXP để đạt đúng level đó (tính từ 0)
@@ -93,7 +106,7 @@ export function totalExpForLevel(level: number): number {
 // Tính level từ tổng EXP (dùng phía client, server dùng SQL)
 export function levelFromExp(totalExp: number): number {
   let level = 1;
-  while (level < 50 && totalExp >= totalExpForLevel(level + 1)) {
+  while (level < 100 && totalExp >= totalExpForLevel(level + 1)) {
     level++;
   }
   return level;
@@ -116,7 +129,7 @@ export function rankFromExp(totalExp: number): RankTier {
 // Progress trong level hiện tại (0–1)
 export function levelProgress(totalExp: number): number {
   const level     = levelFromExp(totalExp);
-  if (level >= 50) return 1;
+  if (level >= 100) return 1;
   const levelStart = totalExpForLevel(level);
   const levelEnd   = totalExpForLevel(level + 1);
   return (totalExp - levelStart) / (levelEnd - levelStart);

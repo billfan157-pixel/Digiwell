@@ -3,8 +3,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Droplet, Minus, Plus } from 'lucide-react';
 
 interface EditEntryModalProps {
-  editingEntry: any;
-  setEditingEntry: (entry: any) => void;
+  editingEntry: { id: string } | null;
+  setEditingEntry: (entry: { id: string } | null) => void;
   editAmount: string | number;
   setEditAmount: (amount: string) => void;
   handleEditEntry: (id: string, newAmount: number) => Promise<void>;
@@ -26,7 +26,7 @@ export default function EditEntryModal({
   return (
     <AnimatePresence>
       {editingEntry && (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
+        <div key="edit-entry-modal-wrapper" className="fixed inset-0 z-[200] flex items-center justify-center p-4">
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}

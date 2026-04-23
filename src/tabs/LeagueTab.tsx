@@ -1,5 +1,7 @@
 import { Trophy, UserPlus, Zap, Crown, Medal } from 'lucide-react';
 import ClubsView from '../components/ClubsView';
+import AvatarFrame from '../components/AvatarFrame';
+import type { Profile } from '../models';
 
 interface LeagueTabProps {
   leagueMode: 'public' | 'friends' | 'clubs';
@@ -7,10 +9,11 @@ interface LeagueTabProps {
   setShowAddFriend: (show: boolean) => void;
   getLeagueData: () => any[];
   getRankInfo: (wp: number) => { name: string; color: string; bg: string; border: string; };
+  profile?: Profile | null;
 }
 
 export default function LeagueTab({
-  leagueMode, setLeagueMode, setShowAddFriend, getLeagueData, getRankInfo
+  leagueMode, setLeagueMode, setShowAddFriend, getLeagueData, getRankInfo, profile
 }: LeagueTabProps) {
   const sortedData = getLeagueData().sort((a, b) => b.wp - a.wp);
   const currentUser = sortedData.find(item => item.isMe);
@@ -28,7 +31,11 @@ export default function LeagueTab({
             Xếp hạng <Trophy size={28} className="text-yellow-400 drop-shadow-[0_0_10px_rgba(250,204,21,0.5)]" />
           </h1>
         </div>
-        <div className="flex items-center gap-3"></div>
+        <div className="flex items-center gap-3">
+          <div className="flex items-center justify-center">
+            <AvatarFrame size="sm" level={profile?.level || 1} avatarUrl={profile?.avatar_url ?? null} nickname={profile?.nickname} showBadge={false} />
+          </div>
+        </div>
       </div>
 
       {/* Toggle Bảng Xếp Hạng */}

@@ -2,16 +2,21 @@ import { useMemo, useState } from 'react';
 import { 
   BarChart2, Cpu, RefreshCw, ArrowUpRight, 
   Target, Flame, ChevronRight, Droplets,
-  TrendingUp, Calendar, Zap, FileText, Crown
+  TrendingUp, Calendar, Zap, FileText, Crown,
+  X, Clock, Bluetooth, Loader2
 } from 'lucide-react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import type { HealthReport } from '../lib/aiReports';
 import WaterBreakdown from '../components/WaterBreakdown';
 import WeeklyReportCard from '../components/ui/WeeklyReportCard';
 import { Skeleton } from '../components/Skeleton';
+import { supabase } from '../lib/supabase';
+import AvatarFrame from '../components/AvatarFrame';
+import type { Profile } from '../models';
+import type { WaterLog } from '../models';
 
 interface InsightTabProps {
-  profile?: any;
+  profile?: Profile | null;
   isPremium: boolean;
   setShowPremiumModal: (show: boolean) => void;
   isExportingPDF: boolean;
@@ -42,6 +47,11 @@ export default function InsightTab({
   const [isStreakModalOpen, setIsStreakModalOpen] = useState(false);
   const [activeWorkout, setActiveWorkout] = useState<string | null>(null);
 
+  // --- STATES CHO MODAL LỊCH SỬ NGÀY ---
+  const [selectedDateModal, setSelectedDateModal] = useState<{date: string, ml: number} | null>(null);
+  const [dayLogs, setDayLogs] = useState<WaterLog[]>([]);
+  const [isDayLogsLoading, setIsDayLogsLoading] = useState(false);
+
   // --- THUẬT TOÁN TRUE CALENDAR: Tự động tạo lưới lịch chuẩn theo Tháng hiện tại ---
   const { calendarCells, currentMonthName } = useMemo(() => {
     const now = new Date();
@@ -60,7 +70,7 @@ export default function InsightTab({
     
     // 1. Lấp đầy các ô trống ở đầu tháng
     for (let i = 0; i < firstDayIndex; i++) {
-      cells.push({ dayNum: null, ml: 0, isFuture: false, isToday: false, isEmptySlot: true });
+      cells.push({ dayNum: null, ml: 0, isFuture: false, isToday: false, isEmptySlot: true, fullDate: '' });
     }
 
     // Lấy data tuần ngược lại để map vào các ngày gần đây
@@ -78,7 +88,8 @@ export default function InsightTab({
         ml = weeklyDataReversed[daysAgo]?.ml || 0;
       }
 
-      cells.push({ dayNum: i, ml, isFuture, isToday, isEmptySlot: false });
+      const fullDateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(i).padStart(2, '0')}`;
+      cells.push({ dayNum: i, ml, isFuture, isToday, isEmptySlot: false, fullDate: fullDateStr });
     }
 
     const monthNames = ['Tháng 1', 'Tháng 2', 'Tháng 3', 'Tháng 4', 'Tháng 5', 'Tháng 6', 'Tháng 7', 'Tháng 8', 'Tháng 9', 'Tháng 10', 'Tháng 11', 'Tháng 12'];
@@ -88,6 +99,27 @@ export default function InsightTab({
       currentMonthName: `${monthNames[month]} / ${year}` 
     };
   }, [weeklyChartData]);
+
+  // --- HÀM LẤY CHI TIẾT LỊCH SỬ NGÀY KHI BẤM VÀO LỊCH ---
+  const handleDayClick = async (dateStr: string, totalMl: number) => {
+    if (!profile?.id) return;
+    setSelectedDateModal({ date: dateStr, ml: totalMl });
+    setIsDayLogsLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('water_logs')
+        .select('*')
+        .eq('user_id', profile.id)
+        .eq('day', dateStr)
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      setDayLogs(data || []);
+    } catch (err) {
+      console.error('Lỗi tải lịch sử ngày:', err);
+    } finally {
+      setIsDayLogsLoading(false);
+    }
+  };
 
   const stats = useMemo(() => {
     if (weeklyChartData.length === 0) return { avg: 0, completed: 0 };
@@ -118,6 +150,9 @@ export default function InsightTab({
             {isExportingPDF ? <RefreshCw size={22} className="text-cyan-400 animate-spin" /> : <FileText size={22} className="text-cyan-400" />}
             {!isPremium && <Crown size={14} className="absolute -top-1.5 -right-1.5 text-amber-400 drop-shadow-md" />}
           </button>
+          <div className="flex items-center justify-center">
+            <AvatarFrame size="sm" level={profile?.level || 1} avatarUrl={profile?.avatar_url ?? null} nickname={profile?.nickname} showBadge={false} />
+          </div>
         </div>
       </div>
 
@@ -259,6 +294,11 @@ export default function InsightTab({
                     initial={{ opacity: 0, scale: 0.3 }}
                     animate={{ opacity: 1, scale: 1 }}
                     transition={{ duration: 0.4, delay: index * 0.015, type: 'spring', bounce: 0.5 }}
+                    onClick={() => {
+                      if (!cell.isFuture && !cell.isEmptySlot && cell.fullDate) {
+                        handleDayClick(cell.fullDate, cell.ml);
+                      }
+                    }}
                     className={`aspect-square rounded-[6px] sm:rounded-lg flex flex-col items-center justify-center transition-all duration-300 relative group ${cellClass} ${!cell.isFuture ? 'hover:scale-110 cursor-pointer' : ''}`}
                   >
                      {/* ĐÂY LÀ CHỖ HIỂN THỊ SỐ NGÀY: 1, 2, 3... 31 */}
@@ -469,6 +509,98 @@ export default function InsightTab({
           </div>
         </div>
       )}
+
+      {/* MODAL LỊCH SỬ UỐNG NƯỚC THEO NGÀY (CALENDAR VIEW) */}
+      <AnimatePresence>
+        {selectedDateModal && (
+          <div key="selected-date-modal" className="fixed inset-0 z-[200] flex items-end justify-center bg-slate-950/80 backdrop-blur-sm" onClick={() => setSelectedDateModal(null)}>
+            <motion.div
+              initial={{ y: '100%' }}
+              animate={{ y: 0 }}
+              exit={{ y: '100%' }}
+              transition={{ type: "spring", damping: 25, stiffness: 200 }}
+              className="w-full max-w-md rounded-t-[2.5rem] p-6 pb-12 bg-slate-900 border-t border-white/10 shadow-2xl flex flex-col max-h-[85vh]"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="w-12 h-1.5 bg-white/10 rounded-full mx-auto mb-6 shrink-0" />
+
+              <div className="flex items-center justify-between mb-6 shrink-0">
+                <div>
+                  <p className="text-cyan-400 text-[10px] font-black uppercase tracking-[0.2em]">
+                    Nhật ký ngày
+                  </p>
+                  <h3 className="text-2xl font-black text-white">
+                    {new Date(selectedDateModal.date).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' })}
+                  </h3>
+                </div>
+                <button onClick={() => setSelectedDateModal(null)} className="p-2 rounded-full bg-slate-800 text-slate-400 hover:text-white transition-colors">
+                  <X size={20} />
+                </button>
+              </div>
+
+              {isDayLogsLoading ? (
+                <div className="flex flex-col items-center justify-center py-16 flex-1">
+                  <Loader2 size={32} className="text-cyan-400 animate-spin mb-3" />
+                  <p className="text-slate-400 text-sm font-medium">Đang tải lịch sử...</p>
+                </div>
+              ) : dayLogs.length === 0 ? (
+                <div className="text-center py-16 flex-1">
+                  <div className="w-16 h-16 bg-slate-800/80 border border-slate-700 rounded-full flex items-center justify-center mx-auto mb-4 shadow-inner">
+                    <Droplets size={30} className="text-slate-600" />
+                  </div>
+                  <p className="text-slate-400 font-medium">
+                    Ngày này đệ chưa uống giọt nào...
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-3 overflow-y-auto pr-2 scrollbar-hide flex-1">
+                  {dayLogs.map((entry, index) => {
+                    const timeStr = new Date(entry.created_at || entry.timestamp).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+                    const amount = entry.amount || 0;
+
+                    return (
+                      <div key={entry.id || index} className="flex items-center gap-4 p-4 rounded-2xl bg-white/5 border border-white/5 hover:bg-white/10 transition-colors">
+                        <div className="w-10 h-10 rounded-xl bg-cyan-500/10 flex items-center justify-center flex-shrink-0">
+                          <Droplets size={18} className="text-cyan-400" />
+                        </div>
+                        <div className="flex-1">
+                          <p className="font-black text-white text-lg">
+                            {amount}<span className="text-xs text-slate-500 ml-1">ml</span>
+                          </p>
+                          <div className="flex items-center gap-2 text-slate-500 text-[10px] font-bold uppercase tracking-wider mt-0.5">
+                            <Clock size={10} />
+                            {timeStr} •
+                            {entry.name === 'DigiBottle' ? (
+                              <span className="text-cyan-400 bg-cyan-500/10 px-1.5 py-0.5 rounded flex items-center gap-1 border border-cyan-500/20">
+                                <Bluetooth size={10} /> Từ DigiBottle
+                              </span>
+                            ) : (
+                              <span>{entry.name || 'Nước lọc'}</span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              <div className="mt-6 pt-6 border-t border-white/5 flex justify-between items-end shrink-0">
+                <div>
+                  <p className="text-[10px] text-slate-500 font-black uppercase tracking-widest">Tổng nạp</p>
+                  <p className="text-3xl font-black text-white">
+                    {selectedDateModal.ml}
+                    <span className="text-sm text-cyan-500 ml-1">ml</span>
+                  </p>
+                </div>
+                <div className="text-right">
+                  <p className="text-[10px] text-slate-500 font-black uppercase tracking-widest">{dayLogs.length} lần uống</p>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

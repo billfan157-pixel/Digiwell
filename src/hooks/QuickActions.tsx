@@ -63,7 +63,7 @@ export function QuickActions({
       <div className="grid grid-cols-3 gap-4">
         {secondaryDrinkPresets.slice(0, 3).map((preset, index) => (
           <motion.button
-            key={preset.id}
+            key={preset.id || `preset-${index}`}
             onClick={() => handleAddWater(preset.amount, preset.factor, preset.name)}
             whileTap={{ scale: 0.95 }}
             className={`${glassCard} p-4 flex flex-col items-center justify-center text-center group hover:scale-105 transition-all duration-300`}

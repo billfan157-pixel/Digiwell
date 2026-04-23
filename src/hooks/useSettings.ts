@@ -63,6 +63,7 @@ export function useSettings(profile: any) {
         ...DEFAULT_SETTINGS, 
         ...JSON.parse(cached), 
         displayName: profile.nickname || profile.name || '', 
+        avatarUrl: profile.avatar_url || JSON.parse(cached).avatarUrl || '',
         weight: profile.weight || 60, 
         height: profile.height || 170, 
         age: profile.age || 20,
@@ -76,6 +77,7 @@ export function useSettings(profile: any) {
       setSettings(prev => ({
         ...prev,
         displayName: profile.nickname || profile.name || '',
+        avatarUrl: profile.avatar_url || '',
         weight: profile.weight || 60,
         height: profile.height || 170,
         age: profile.age || 20,
@@ -116,6 +118,7 @@ export function useSettings(profile: any) {
     try {
       // Đẩy đầy đủ các field quan trọng lên database
       const { error } = await supabase.from('profiles').update({
+        avatar_url: updatedSettings.avatarUrl,
         nickname: updatedSettings.displayName,
         weight: updatedSettings.weight,
         height: updatedSettings.height,

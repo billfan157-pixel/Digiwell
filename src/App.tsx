@@ -8,6 +8,7 @@ import {
   LocalNotifications,
   type ActionPerformed
 } from '@capacitor/local-notifications';
+import { App as CapacitorApp } from '@capacitor/app';
 import {
   parseHydrationNotificationAction,
   registerHydrationReminderActions,
@@ -17,11 +18,12 @@ import {
 import { scanDrinkFromImage, isAiConfigured } from '@/lib/ai';
 import type { HealthReport } from '@/lib/aiReports';
 import { generateWeeklyReport, getLatestHealthReport } from '@/lib/aiReports';
-import { levelFromExp } from '@/config/questConfig';
+import { levelFromExp, totalExpForLevel } from '@/config/questConfig';
 import UpgradeModal from '@/components/modals/UpgradeModal';
 import { runQuestEngine, runChallengeEngine, type QuestEngineContext } from '@/lib/questEngine';
 // @ts-ignore
 import confetti from 'canvas-confetti';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AnimatePresence } from 'framer-motion';
 
 import WelcomeScreen from '@/WelcomeScreen';
@@ -57,6 +59,7 @@ import { calculateWaterIntake, type ActivityLevel, type Gender, type Climate } f
 import OnboardingModal from '@/components/OnboardingModal';
 import LevelUpModal from '@/components/clubs/LevelUpModal';
 import ShopModal from '@/components/modals/ShopModal';
+import BattleArenaModal from '@/components/modals/BattleArenaModal';
 import QuestModal from '@/components/modals/QuestModal';
 import EditEntryModal from '@/components/modals/EditEntryModal';
 import { useSettings } from '@/hooks/useSettings';
@@ -69,6 +72,8 @@ import { exportHealthReportPDF } from '@/lib/pdfExport';
 // FIX #1: handleRegister upsert profiles sau signUp
 // FIX #2: waterGoal tự động theo Calendar/Watch thay vì currentActivity thủ công
 // ============================================================================
+
+const queryClient = new QueryClient();
 
 function AppContent() {
 
@@ -194,6 +199,7 @@ function AppContent() {
 
   // State cho Chat AI Premium
   const [showShopModal, setShowShopModal] = useState(false);
+  const [showBattleArena, setShowBattleArena] = useState(false);
   const [showQuestModal, setShowQuestModal] = useState(false);
   const [weeklyReport, setWeeklyReport] = useState<HealthReport | null>(null);
   const [levelUpInfo, setLevelUpInfo] = useState({ from: 0, to: 0 });
@@ -379,16 +385,24 @@ function AppContent() {
       }
 
       if (data) {
-        // Remove level from database - always calculate from total_exp
         const calculatedLevel = levelFromExp(data.total_exp || 0);
+
+        // Auto-heal level in database if out of sync
+        if (data.level !== calculatedLevel) {
+          console.log(`[App] Auto-healing DB level from ${data.level} to ${calculatedLevel}`);
+          supabase.from('profiles').update({ level: calculatedLevel }).eq('id', data.id).then();
+          data.level = calculatedLevel;
+        }
 
         localStorage.setItem('cached_profile', JSON.stringify(data));
         setProfile({
           id: data.id, nickname: data.nickname, password: '', gender: data.gender,
+          avatar_url: data.avatar_url,
           age: data.age, height: data.height, weight: data.weight, activity: data.activity,
           climate: data.climate, goal: data.goal, wakeUp: data.wake_up, bedTime: data.bed_time,
 
-          water_goal: data.water_goal, wp: data.wp, coins: data.coins, total_exp: data.total_exp, level: calculatedLevel,
+            water_goal: data.water_goal, wp: data.wp, coins: data.coins, total_exp: data.total_exp, level: calculatedLevel,
+            current_exp: data.current_exp,
           water_today: data.water_today, total_water: data.total_water,
           onboarding_completed: data.onboarding_completed
         });
@@ -402,6 +416,7 @@ function AppContent() {
         if (parsed.id && parsed.id !== 'undefined' && parsed.id.length === 36) {
           setProfile({
             id: parsed.id, nickname: parsed.nickname, password: '', gender: parsed.gender,
+            avatar_url: parsed.avatar_url,
             age: parsed.age, height: parsed.height, weight: parsed.weight, activity: parsed.activity,
             climate: parsed.climate, goal: parsed.goal, wakeUp: parsed.wake_up, bedTime: parsed.bed_time,
             water_goal: parsed.water_goal, wp: parsed.wp, coins: parsed.coins, total_exp: parsed.total_exp, level: levelFromExp(parsed.total_exp || 0),
@@ -439,39 +454,31 @@ function AppContent() {
       return;
     }
 
-    let updatedProfileForDb: any = null;
+    if (!profile || !profile.id || profile.id === 'undefined') return;
 
-    // Use the functional update form of setProfile to get the latest state
-    setProfile((prev: any) => {
-      if (!prev) return prev;
+    const newTotalExp = (profile.total_exp || 0) + optimisticExp;
+    const newLevel = levelFromExp(newTotalExp);
+    const newWaterToday = (profile.water_today || 0) + optimisticAmount;
+    const newTotalWater = (profile.total_water || 0) + optimisticAmount;
+    const optimisticCoins = Math.floor(optimisticExp * 0.5);
 
-      const newTotalExp = (prev.total_exp || 0) + optimisticExp;
-          // Level is calculated from total_exp - no need to store in DB
-      const newWaterToday = (prev.water_today || 0) + optimisticAmount;
-      const newTotalWater = (prev.total_water || 0) + optimisticAmount;
+    const updatedProfileForDb = {
+      ...profile,
+      total_exp: newTotalExp,
+      level: newLevel,
+      coins: (profile.coins || 0) + optimisticCoins,
+      water_today: newWaterToday,
+      total_water: newTotalWater,
+    };
 
-      updatedProfileForDb = {
-        ...prev,
-        total_exp: newTotalExp,
-        water_today: newWaterToday,
-        total_water: newTotalWater,
-        // level is calculated from total_exp - not stored in DB
-      };
+    // Cập nhật State cho UI chạy mượt mà ngay lập tức
+    setProfile(updatedProfileForDb);
+    localStorage.setItem('cached_profile', JSON.stringify(updatedProfileForDb));
 
-      if (updatedProfileForDb.id && updatedProfileForDb.id !== 'undefined') {
-        localStorage.setItem('cached_profile', JSON.stringify(updatedProfileForDb));
-      }
-      return updatedProfileForDb;
-    });
-
-    // Now, `updatedProfileForDb` holds the correct new state. Update the database.
     if (updatedProfileForDb && updatedProfileForDb.id) {
       const { error } = await supabase.from('profiles').update({
-        total_exp: updatedProfileForDb.total_exp,
         water_today: updatedProfileForDb.water_today,
         total_water: updatedProfileForDb.total_water,
-        last_water_date: new Date().toISOString().split('T')[0],
-        // level is calculated from total_exp - not stored in DB
       }).eq('id', updatedProfileForDb.id);
 
       if (error) {
@@ -485,7 +492,7 @@ function AppContent() {
     } else {
       await refetchProfile();
     }
-  }, [setProfile, refetchProfile]);
+  }, [profile, setProfile, refetchProfile]);
 
   // Hàm trừ tiền vàng dùng trong Shop
   const handleSpendCoins = async (amount: number) => {
@@ -522,10 +529,14 @@ function AppContent() {
         setProfile((prev: any) => {
           if (!prev) return prev;
 
+          const updatedExp = new_total_exp ?? prev.total_exp;
+          const updatedLevel = levelFromExp(updatedExp);
+
           return {
             ...prev,
-            total_exp: new_total_exp ?? prev.total_exp,
-            coins: new_coins ?? prev.coins,
+            total_exp: updatedExp,
+            level: updatedLevel,
+            coins: new_coins !== undefined ? (prev.coins || 0) + new_coins : prev.coins,
             water_today: amount_ml > 0 ? (prev.water_today || 0) + amount_ml : prev.water_today,
             total_water: amount_ml > 0 ? (prev.total_water || 0) + amount_ml : prev.total_water,
           };
@@ -551,14 +562,54 @@ function AppContent() {
   // GAMIFICATION: Level Up Effect
   useEffect(() => {
     if (profile?.level && previousLevelRef.current !== null && profile.level > previousLevelRef.current) {
-        setLevelUpInfo({ from: previousLevelRef.current, to: profile.level });
+        const newLevel = profile.level;
+        
+        // --- HỆ THỐNG PHẦN THƯỞNG 4 LỚP (RPG GACHA) ---
+        const isMilestone10 = newLevel % 10 === 0;
+        const isMilestone5 = newLevel % 5 === 0 && !isMilestone10;
+
+        // 1. Base Exponential Scaling (Mũ 1.15)
+        let baseReward = Math.floor(50 * Math.pow(newLevel, 1.15));
+
+        // 2. Random Bonus (0% - 20%)
+        const rngBonus = 1 + Math.random() * 0.2;
+        let coinReward = Math.floor(baseReward * rngBonus);
+
+        // 3. Critical Hit! (10% cơ hội nổ hũ x2 Vàng)
+        const isCrit = Math.random() < 0.1;
+        if (isCrit) coinReward *= 2;
+
+        // 4. Milestones
+        if (isMilestone10) coinReward += 1000;
+        else if (isMilestone5) coinReward += 500;
+
+        const wpReward = isMilestone10 ? 500 : 0;
+
+        setLevelUpInfo({ from: previousLevelRef.current, to: newLevel });
         setShowLevelUp(true);
-        confetti({ particleCount: 200, spread: 120, origin: { y: 0.6 }, zIndex: 9999 });
+        confetti({ particleCount: isMilestone10 ? 400 : 200, spread: 120, origin: { y: 0.6 }, zIndex: 9999 });
         playSuccessSound();
+
+        // Tự động cộng Vàng và WP thưởng vào DB và UI
+        if (profile?.id) {
+          setProfile((prev: any) => {
+            const updatedCoins = (prev.coins || 0) + coinReward;
+            const updatedWp = (prev.wp || 0) + wpReward;
+            supabase.from('profiles').update({ coins: updatedCoins, wp: updatedWp }).eq('id', profile.id).then();
+            return { ...prev, coins: updatedCoins, wp: updatedWp };
+          });
+        }
+
+        setTimeout(() => {
+          let msg = `🎉 Lên cấp ${newLevel}! Nhận ${coinReward} Vàng`;
+          if (isCrit) msg = `💥 CRITICAL HIT! Nổ hũ ${coinReward} Vàng!`;
+          if (wpReward > 0) msg += ` & ${wpReward} WP`;
+          toast.success(msg, { icon: isCrit ? '🎰' : '💰', duration: 5000 });
+        }, 500);
     }
     // Update ref after checking
     previousLevelRef.current = profile?.level || null;
-  }, [profile?.level, setShowLevelUp]);
+  }, [profile?.level, profile?.id, setProfile, setShowLevelUp]);
 
   // Tải dữ liệu nước trong tuần (REAL DATA)
   useEffect(() => {
@@ -584,24 +635,23 @@ function AppContent() {
             return;
         }
 
-        const startDate = new Date(today.getFullYear(), today.getMonth(), today.getDate() - 6, 0, 0, 0).toISOString();
-        const endDate = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 23, 59, 59, 999).toISOString();
+        const startDayStr = dateList[0].dayStr;
+        const endDayStr = dateList[6].dayStr;
 
         try {
             const { data: cloudData, error } = await supabase!
                 .from('water_logs')
-                .select('created_at, amount')
+                .select('day, amount')
                 .eq('user_id', profile.id)
-                .gte('created_at', startDate)
-                .lte('created_at', endDate);
+                .gte('day', startDayStr)
+                .lte('day', endDayStr);
 
             if (error) throw error;
 
             const dataMap = new Map<string, number>();
             cloudData?.forEach((d: any) => {
-                if (!d.created_at) return;
-                const dObj = new Date(d.created_at);
-                const dayKey = `${dObj.getFullYear()}-${String(dObj.getMonth() + 1).padStart(2, '0')}-${String(dObj.getDate()).padStart(2, '0')}`;
+                if (!d.day) return;
+                const dayKey = d.day;
                 dataMap.set(dayKey, (dataMap.get(dayKey) || 0) + (d.amount || 0));
             });
 
@@ -1229,7 +1279,7 @@ function AppContent() {
   };
   const activityLabel = activityLabelMap[profile?.activity || ''] || profile?.activity || '--';
   const connectedSystems = [
-    { icon: CloudSun, label: 'Trạm thời tiết', sub: 'Đồng bộ tự động qua GPS', active: isWeatherSynced, action: () => syncWeather(profile?.city), activeColor: '#f97316', activeBg: 'rgba(249,115,22,0.2)', activeBorder: 'rgba(249,115,22,0.4)' },
+    { icon: CloudSun, label: 'Trạm thời tiết', sub: 'Đồng bộ tự động qua GPS', active: isWeatherSynced, action: () => syncWeather(''), activeColor: '#f97316', activeBg: 'rgba(249,115,22,0.2)', activeBorder: 'rgba(249,115,22,0.4)' },
     { icon: Calendar, label: 'Lịch trình thông minh', sub: 'Nhắc nhở theo agenda và giờ học', active: isCalendarSynced, action: syncCalendar, activeColor: '#818cf8', activeBg: 'rgba(99,102,241,0.2)', activeBorder: 'rgba(99,102,241,0.4)' },
     { icon: Watch, label: 'Watch / HealthKit', sub: 'Nhịp tim và bước chân thời gian thực', active: isWatchConnected, action: toggleHealthConnection, activeColor: '#22d3ee', activeBg: 'rgba(6,182,212,0.2)', activeBorder: 'rgba(6,182,212,0.4)' },
   ];
@@ -1348,10 +1398,10 @@ function AppContent() {
             profile={profile}
             nowText={nowText}
             hasPendingCloudSync={hasPendingCloudSync}
-            waterEntries={waterEntries}
+            waterEntries={waterEntries as any[]}
             handleDeleteEntry={handleDeleteEntry}
             isSyncing={isSyncing}
-            setActiveTab={setActiveTab}
+            setActiveTab={setActiveTab as any}
             waterIntake={waterIntake}
             waterGoal={waterGoal}
             remainingWater={remainingWater}
@@ -1368,6 +1418,7 @@ function AppContent() {
              handleAddWater={handleAddWater}
              handleScan={handleScan}
              setShowShopModal={setShowShopModal}
+             setShowBattleArena={setShowBattleArena}
              setShowQuestModal={setShowQuestModal}
 
              handleLogout={handleLogout}
@@ -1379,7 +1430,7 @@ function AppContent() {
             customDrinkForm={customDrinkForm}
             setCustomDrinkForm={handleSetCustomDrinkForm}
             setEditingPresets={setEditingPresets}
-            weatherData={weatherData}
+            weatherData={weatherData as any}
             watchData={watchData}
             weeklyHistory={weeklyHistory}
             smartBottle={smartBottle}
@@ -1429,6 +1480,7 @@ function AppContent() {
             setShowAddFriend={setShowAddFriend}
             getLeagueData={getLeagueData}
             getRankInfo={getRankInfo}
+            profile={profile}
           />
         )}
 
@@ -1436,14 +1488,14 @@ function AppContent() {
         {activeTab === 'feed' && (
           <FeedTab
             profile={profile}
-            socialStories={socialProps.socialStories || []}
+            socialStories={(socialProps.socialStories as any[]) || []}
             socialError={socialProps.socialError || ''}
             isSocialLoading={socialProps.isSocialLoading || false}
             socialFollowingIds={socialProps.socialFollowingIds || []}
             openSocialComposer={openSocialComposer as any}
             setShowSocialProfile={socialProps.setShowSocialProfile || (() => {})}
             setShowDiscoverPeople={socialProps.setShowDiscoverPeople || (() => {})}
-            handleToggleLikePost={socialProps.handleToggleLikePost || (() => {})}
+            handleToggleLikePost={socialProps.handleToggleLikePost as any}
           />
         )}
 
@@ -1467,11 +1519,11 @@ function AppContent() {
             setShowPremiumModal={setShowPremiumModal}
             setShowAddFriend={setShowAddFriend}
             setShowProfileSettings={setShowProfileSettings}
-            setActiveTab={setActiveTab}
+            setActiveTab={setActiveTab as any}
             setShowShopModal={setShowShopModal}
             handleLogout={handleLogout}
             posts={posts}
-            handleToggleLikePost={socialProps.handleToggleLikePost}
+            handleToggleLikePost={socialProps.handleToggleLikePost as any}
           />
         )}
       </div>
@@ -1499,6 +1551,13 @@ function AppContent() {
         onSpendCoins={handleSpendCoins} 
       />
       
+      <BattleArenaModal 
+        isOpen={showBattleArena} 
+        onClose={() => setShowBattleArena(false)} 
+        profile={profile} 
+        onSpendCoins={handleSpendCoins} 
+      />
+
       {/* Nút Sync Debug */}
       {import.meta.env.DEV && profile?.id && profile.id !== 'undefined' && (
         <button 
@@ -1515,6 +1574,8 @@ function AppContent() {
         onClose={() => setShowQuestModal(false)}
         userId={profile?.id}
         streak={streak}
+        waterToday={waterIntake}
+        logCount={waterEntries.length}
         onRewardClaimed={handleQuestRewardClaimed}
       />
       
@@ -1564,9 +1625,11 @@ VITE_SUPABASE_ANON_KEY=eyJhbGci...`}
     );
   }
   return (
-    <ThemeProvider>
-      <AppWithTheme />
-    </ThemeProvider>
+    <QueryClientProvider client={queryClient}>
+      <ThemeProvider>
+        <AppWithTheme />
+      </ThemeProvider>
+    </QueryClientProvider>
   );
 }
 

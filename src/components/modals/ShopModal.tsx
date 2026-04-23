@@ -1,9 +1,12 @@
-import React, { useState, useEffect } from 'react';
-import { X, ShoppingBag, Check, Sparkles, Palette, Frame, Droplets, Coins, Loader2, Database } from 'lucide-react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { X, ShoppingBag, Check, Sparkles, Palette, Frame, Droplets, Coins, Loader2, Database, Package } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../../lib/supabase';
 import CountUp from '../CountUp';
+import GachaMachine from '../GachaMachine';
+import type { Profile } from '../../models';
 
 interface ShopItem {
   id: string;
@@ -14,6 +17,8 @@ interface ShopItem {
   category: 'theme' | 'frame' | 'bottle';
   meta_value: string;
   image_url?: string;
+  preview_color?: string;
+  animation_type?: string;
 }
 
 interface ShopItemCardProps {
@@ -44,8 +49,16 @@ const ShopItemCard: React.FC<ShopItemCardProps> = ({ item, isOwned, isEquipped, 
       {item.meta_value && (item.meta_value.startsWith('http') || item.meta_value.startsWith('/')) ? (
         <img src={item.meta_value} alt={item.name} className="w-16 h-16 rounded-full mb-3 object-cover border-2 border-slate-700" />
       ) : item.category === 'theme' && item.meta_value.startsWith('#') ? (
-        <div className="w-16 h-16 rounded-full mb-3 border-2 border-slate-700 shadow-inner flex items-center justify-center" style={{ backgroundColor: item.meta_value }}>
-          <Palette size={20} className="text-white/50" />
+        <div 
+          className="w-16 h-16 rounded-2xl mb-3 flex items-center justify-center relative transition-transform" 
+          style={{ 
+            backgroundColor: `${item.preview_color || item.meta_value}15`, 
+            border: `1px solid ${item.preview_color || item.meta_value}40`,
+            boxShadow: `0 8px 20px -4px ${item.preview_color || item.meta_value}30`
+          }}
+        >
+          <div className="absolute inset-0 opacity-30 rounded-2xl" style={{ background: `radial-gradient(circle at 50% 0%, ${item.preview_color || item.meta_value}, transparent 70%)` }} />
+          <Palette size={28} style={{ color: item.preview_color || item.meta_value }} className="z-10 relative drop-shadow-sm" />
         </div>
       ) : (
         <div className="w-16 h-16 rounded-full mb-3 bg-slate-700 flex items-center justify-center">
@@ -78,75 +91,92 @@ export default function ShopModal({
   onClose, 
   profile,
   onSpendCoins 
-}: { isOpen: boolean; onClose: () => void; profile: any; onSpendCoins?: (amount: number) => Promise<boolean> }) {
+}: { isOpen: boolean; onClose: () => void; profile: Profile | null; onSpendCoins?: (amount: number) => Promise<boolean> }) {
+  const queryClient = useQueryClient();
   const [activeCategory, setActiveCategory] = useState<'theme' | 'frame' | 'bottle'>('theme');
-  const [items, setItems] = useState<ShopItem[]>([]);
-  const [ownedItems, setOwnedItems] = useState<Set<string>>(new Set());
+    const [viewMode, setViewMode] = useState<'shop' | 'inventory'>('shop');
   const [processingId, setProcessingId] = useState<string | null>(null);
   const [equippedBottleId, setEquippedBottleId] = useState<string | null>(profile?.equipped_bottle_id || null);
+  const [currentTheme, setCurrentTheme] = useState<string>('');
 
   useEffect(() => {
     setEquippedBottleId(profile?.equipped_bottle_id || null);
   }, [profile?.equipped_bottle_id]);
 
+  // Đọc theme hiện tại
   useEffect(() => {
-    if (!profile?.id || !isOpen) return;
-
-    const fetchData = async () => {
-      try {
-        // Fetch shop items
-        const { data: shopItems, error: itemsError } = await supabase
-          .from('shop_items')
-          .select('id, name, description, price, rarity, category, meta_value, image_url')
-          .eq('is_active', true);
-
-        if (itemsError) throw itemsError;
-        setItems(shopItems || []);
-
-        // Fetch user purchases
-        const { data: purchases, error: purchasesError } = await supabase
-          .from('user_purchases')
-          .select('item_id')
-          .eq('user_id', profile.id);
-
-        if (purchasesError) throw purchasesError;
-        setOwnedItems(new Set(purchases?.map((p: any) => p.item_id) || []));
-      } catch (error) {
-        console.error('Error fetching shop data:', error);
-        toast.error('Không thể tải dữ liệu cửa hàng');
-      }
-    };
-
-    fetchData();
+    if (profile?.id) {
+      const prefs = JSON.parse(localStorage.getItem(`digiwell_prefs_${profile.id}`) || '{}');
+      setCurrentTheme(prefs.themeColor || '#06b6d4');
+    }
   }, [profile?.id, isOpen]);
 
-  // --- DEV ONLY: Chức năng gieo dữ liệu mẫu cho cửa hàng ---
-  const handleSeedData = async () => {
-    const toastId = toast.loading("Đang gieo dữ liệu mẫu cho cửa hàng...");
+  // Hàm nạp Data mẫu dùng chung
+  const seedSampleData = async () => {
+    const sampleItems = [
+        { id: 'theme_cyan', name: 'Cyberpunk (Cyan)', description: 'Màu lục lam Neon mặc định', price: 0, rarity: 'common', category: 'theme', meta_value: '#06b6d4', preview_color: '#06b6d4', is_active: true },
+        { id: 'theme_yellow', name: 'Hoàng Kim (Gold)', description: 'Ánh vàng vương giả quyền quý', price: 200, rarity: 'rare', category: 'theme', meta_value: '#f59e0b', preview_color: '#f59e0b', is_active: true },
+        { id: 'theme_emerald', name: 'Lục Bảo (Emerald)', description: 'Xanh ngọc bích thiên nhiên tươi mát', price: 250, rarity: 'rare', category: 'theme', meta_value: '#10b981', preview_color: '#10b981', is_active: true },
+        { id: 'theme_purple', name: 'Dạ Khúc (Purple)', description: 'Sắc tím neon huyền bí', price: 500, rarity: 'epic', category: 'theme', meta_value: '#a855f7', preview_color: '#a855f7', is_active: true },
+        { id: 'theme_red', name: 'Hỏa Ngục (Crimson)', description: 'Màu đỏ thẫm rực lửa', price: 500, rarity: 'epic', category: 'theme', meta_value: '#e11d48', preview_color: '#e11d48', is_active: true },
+        { id: 'theme_aurora', name: 'Cực Quang (Aurora)', description: 'Sắc hồng cực quang siêu hiếm', price: 1000, rarity: 'legendary', category: 'theme', meta_value: '#ec4899', preview_color: '#ec4899', is_active: true },
+        { id: 'frame_silver', name: 'Khung Bạc', description: 'Khung avatar bạc', price: 250, rarity: 'rare', category: 'frame', meta_value: 'silver-frame.png', is_active: true },
+        { id: 'bottle_cyberpunk', name: 'Cyberpunk Neon', description: 'Skin bình nước phong cách Cyberpunk', price: 500, rarity: 'epic', category: 'bottle', image_url: 'https://plbwqjdrivyffrhpbmvm.supabase.co/storage/v1/object/public/shop_items/bottle_cyberpunk.png', meta_value: 'https://plbwqjdrivyffrhpbmvm.supabase.co/storage/v1/object/public/shop_items/bottle_cyberpunk.png', is_active: true },
+        { id: 'bottle_panda', name: 'Gấu Trúc', description: 'Skin bình nước hình gấu trúc', price: 300, rarity: 'rare', category: 'bottle', image_url: 'https://plbwqjdrivyffrhpbmvm.supabase.co/storage/v1/object/public/shop_items/bottle_panda.png', meta_value: 'https://plbwqjdrivyffrhpbmvm.supabase.co/storage/v1/object/public/shop_items/bottle_panda.png', is_active: true },
+    ];
+    const { error } = await supabase.from('shop_items').upsert(sampleItems);
+    if (error) throw error;
+    return sampleItems as ShopItem[];
+  };
+
+  const handleManualSeed = async () => {
+    const toastId = toast.loading("Đang nạp kho hàng...");
     try {
-        const sampleItems = [
-            // Themes
-            { name: 'Xanh Cyan', description: 'Giao diện mặc định', price: 0, rarity: 'common', category: 'theme', meta_value: '#06b6d4', is_active: true },
-            { name: 'Đỏ Thẫm', description: 'Giao diện màu đỏ thẫm', price: 100, rarity: 'common', category: 'theme', meta_value: '#dc2626', is_active: true },
-            { name: 'Vàng Chanh', description: 'Giao diện màu vàng chanh', price: 100, rarity: 'common', category: 'theme', meta_value: '#f59e0b', is_active: true },
-            // Frames
-            { name: 'Khung Bạc', description: 'Khung avatar bạc', price: 250, rarity: 'rare', category: 'frame', meta_value: 'silver-frame.png', is_active: true },
-            // Bottle Skins
-            { name: 'Cyberpunk Neon', description: 'Skin bình nước phong cách Cyberpunk', price: 500, rarity: 'epic', category: 'bottle', image_url: 'https://plbwqjdrivyffrhpbmvm.supabase.co/storage/v1/object/public/shop_items/bottle_cyberpunk.png', meta_value: 'https://plbwqjdrivyffrhpbmvm.supabase.co/storage/v1/object/public/shop_items/bottle_cyberpunk.png', is_active: true },
-            { name: 'Gấu Trúc', description: 'Skin bình nước hình gấu trúc', price: 300, rarity: 'rare', category: 'bottle', image_url: 'https://plbwqjdrivyffrhpbmvm.supabase.co/storage/v1/object/public/shop_items/bottle_panda.png', meta_value: 'https://plbwqjdrivyffrhpbmvm.supabase.co/storage/v1/object/public/shop_items/bottle_panda.png', is_active: true },
-        ];
-
-        const { error } = await supabase.from('shop_items').insert(sampleItems);
-
-        if (error) throw error;
-
-        toast.success("Gieo dữ liệu thành công! Vui lòng đóng và mở lại cửa hàng.", { id: toastId });
+        await seedSampleData();
+        await queryClient.invalidateQueries({ queryKey: ['shopData', profile?.id] });
+        toast.success("Đã nhập hàng mới thành công!", { id: toastId });
     } catch (error: any) {
-        toast.error("Lỗi gieo dữ liệu: " + error.message, { id: toastId });
+        toast.error("Lỗi nạp hàng: " + error.message, { id: toastId });
     }
   };
 
+  // --- ÁP DỤNG REACT QUERY GIÚP CACHE DỮ LIỆU CỬA HÀNG ---
+  const { data: shopData, isLoading: isShopLoading } = useQuery({
+    queryKey: ['shopData', profile?.id],
+    queryFn: async () => {
+      const { data: shopItems, error: itemsError } = await supabase
+        .from('shop_items')
+        .select('id, name, description, price, rarity, category, meta_value, image_url, preview_color, animation_type')
+        .eq('is_active', true);
+
+      if (itemsError) throw itemsError;
+
+      let finalItems = shopItems;
+      if (!shopItems || shopItems.length === 0) {
+        finalItems = await seedSampleData();
+      }
+
+      const { data: purchases, error: purchasesError } = await supabase
+        .from('user_purchases')
+        .select('item_id')
+        .eq('user_id', profile?.id);
+
+      if (purchasesError) throw purchasesError;
+
+      return {
+        items: finalItems as ShopItem[],
+        ownedItems: new Set<string>(purchases?.map((p: { item_id: string }) => p.item_id) || [])
+      };
+    },
+    enabled: !!profile?.id && isOpen, // Chỉ tự động Fetch khi modal Đang mở
+    staleTime: 1000 * 60 * 60, // Cache siêu tốc giữ dữ liệu trong 1 tiếng
+  });
+
+  const items = shopData?.items || [];
+  const ownedItems = shopData?.ownedItems || new Set<string>();
+
   const handleBuy = async (item: ShopItem) => {
+    if (!profile) return;
     if (ownedItems.has(item.id)) return;
 
     if ((profile?.coins || 0) < item.price) {
@@ -158,15 +188,18 @@ export default function ShopModal({
     try {
       // BÁO CÁO: Đã thay thế logic trừ tiền Client-side bằng RPC Backend để tránh thất thoát dữ liệu!
       const { data, error } = await supabase.rpc('purchase_item', {
-        p_user_id: profile.id,
+        p_user_id: profile?.id,
         p_item_id: item.id,
         p_price: item.price
       });
 
       if (error) throw error;
 
-      // Update local state
-      setOwnedItems(prev => new Set([...prev, item.id]));
+      // Cập nhật Cache local ngay lập tức không cần fetch lại
+      queryClient.setQueryData(['shopData', profile?.id], (old: { items: ShopItem[], ownedItems: Set<string> } | undefined) => {
+        if (!old) return old;
+        return { ...old, ownedItems: new Set([...old.ownedItems, item.id]) };
+      });
       
       // Cập nhật lại UI số dư tiền vàng trên app
       if (onSpendCoins) {
@@ -183,20 +216,28 @@ export default function ShopModal({
   };
 
   const handleEquip = async (item: ShopItem) => {
+    if (!profile) return;
     if (!ownedItems.has(item.id)) return;
     setProcessingId(item.id);
 
     try {
-      const { error } = await supabase
-        .from('profiles')
-        .update({ equipped_bottle_id: item.id })
-        .eq('id', profile.id);
-
-      if (error) throw error;
-
-      setEquippedBottleId(item.id);
-      // Dispatch event to update HomeTab
-      window.dispatchEvent(new CustomEvent('bottleEquipped', { detail: { equipped_bottle_id: item.id } }));
+      if (item.category === 'bottle') {
+        const { error } = await supabase
+          .from('profiles')
+          .update({ equipped_bottle_id: item.id })
+          .eq('id', profile?.id);
+        if (error) throw error;
+        
+        setEquippedBottleId(item.id);
+        window.dispatchEvent(new CustomEvent('bottleEquipped', { detail: { equipped_bottle_id: item.id } }));
+      } else if (item.category === 'theme') {
+        const prefs = JSON.parse(localStorage.getItem(`digiwell_prefs_${profile?.id}`) || '{}');
+        prefs.themeColor = item.meta_value;
+        localStorage.setItem(`digiwell_prefs_${profile?.id}`, JSON.stringify(prefs));
+        setCurrentTheme(item.meta_value);
+        // Bắn tín hiệu để ThemeEngine đổi màu ngay lập tức
+        window.dispatchEvent(new CustomEvent('themeUpdated', { detail: { themeColor: item.meta_value } }));
+      }
       toast.success(`Đã trang bị ${item.name}!`);
     } catch (error) {
       console.error('Equip error:', error);
@@ -206,7 +247,17 @@ export default function ShopModal({
     }
   };
 
-  const filteredItems = items.filter(item => item.category === activeCategory);
+  const isItemEquipped = (item: ShopItem) => {
+    if (item.category === 'bottle') return equippedBottleId === item.id;
+    if (item.category === 'theme') return currentTheme === item.meta_value;
+    return false;
+  };
+
+  const filteredItems = items.filter((item: ShopItem) => {
+    if (item.category !== activeCategory) return false;
+    if (viewMode === 'inventory') return ownedItems.has(item.id);
+    return true;
+  });
 
   if (!isOpen) return null;
 
@@ -222,7 +273,10 @@ export default function ShopModal({
         {/* Header & Credit Card */}
         <div className="bg-gradient-to-r from-slate-800 to-slate-900 rounded-2xl p-4 mb-6 border border-slate-700/50">
           <div className="flex justify-between items-center mb-4">
-            <h2 className="text-xl font-black text-white leading-tight">Cửa Hàng Độc Quyền</h2>
+            <div className="flex bg-slate-950/50 rounded-lg p-1 border border-white/5">
+              <button onClick={() => setViewMode('shop')} className={`px-4 py-1.5 rounded-md text-sm font-bold transition-all ${viewMode === 'shop' ? 'bg-amber-500/20 text-amber-400' : 'text-slate-400 hover:text-white'}`}>Cửa hàng</button>
+              <button onClick={() => setViewMode('inventory')} className={`px-4 py-1.5 rounded-md text-sm font-bold transition-all ${viewMode === 'inventory' ? 'bg-cyan-500/20 text-cyan-400' : 'text-slate-400 hover:text-white'}`}>Kho đồ</button>
+            </div>
             <button onClick={onClose} className="p-2 bg-slate-800 rounded-full text-slate-400 hover:text-white"><X size={20} /></button>
           </div>
           <div className="flex items-center gap-3">
@@ -266,36 +320,58 @@ export default function ShopModal({
 
         {/* Item Grid */}
         <AnimatePresence mode="wait">
-          <motion.div
-            key={activeCategory}
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -20 }}
-            transition={{ duration: 0.3 }}
-            className="grid grid-cols-2 gap-3"
-          >
-            {filteredItems.map(item => (
-              <ShopItemCard
-                key={item.id}
-                item={item}
-                isOwned={ownedItems.has(item.id)}
-                isEquipped={equippedBottleId === item.id}
-                isProcessing={processingId === item.id}
-                onBuy={handleBuy}
-                onEquip={handleEquip}
-              />
-            ))}
-          </motion.div>
+          {isShopLoading ? (
+            <motion.div key="shop-loading" exit={{ opacity: 0 }} className="flex justify-center items-center py-20">
+              <Loader2 className="animate-spin text-cyan-500" size={32} />
+            </motion.div>
+          ) : (
+            <motion.div
+              key={activeCategory}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              transition={{ duration: 0.3 }}
+              className="grid grid-cols-2 gap-3"
+            >
+              {filteredItems.map((item: ShopItem) => (
+                <ShopItemCard
+                  key={item.id}
+                  item={item}
+                  isOwned={ownedItems.has(item.id)}
+                  isEquipped={isItemEquipped(item)}
+                  isProcessing={processingId === item.id}
+                  onBuy={handleBuy}
+                  onEquip={handleEquip}
+                />
+              ))}
+            </motion.div>
+          )}
         </AnimatePresence>
 
         {/* DEV ONLY: Nút để seed data */}
-        {filteredItems.length === 0 && (
+        {!isShopLoading && filteredItems.length === 0 && viewMode === 'shop' && (
           <div className="mt-6 text-center p-4 border border-dashed border-slate-700 rounded-2xl">
             <p className="text-slate-500 text-sm mb-3">Cửa hàng trống trơn. Sếp có muốn gieo dữ liệu mẫu không?</p>
-            <button onClick={handleSeedData} className="bg-indigo-500/20 text-indigo-300 px-4 py-2 rounded-xl text-xs font-bold flex items-center justify-center gap-2 mx-auto">
+            <button onClick={handleManualSeed} className="bg-indigo-500/20 text-indigo-300 px-4 py-2 rounded-xl text-xs font-bold flex items-center justify-center gap-2 mx-auto">
               <Database size={14} /> Gieo Data Mẫu
             </button>
           </div>
+        )}
+
+        {/* Empty Inventory */}
+        {!isShopLoading && filteredItems.length === 0 && viewMode === 'inventory' && (
+          <div className="mt-6 text-center p-8 border border-dashed border-slate-700 rounded-2xl bg-slate-800/20">
+            <Package size={40} className="mx-auto text-slate-500 mb-3" />
+            <p className="text-slate-400 text-sm font-medium">Kho đồ trống.</p>
+            <p className="text-slate-500 text-xs mt-1">Hãy ghé Cửa hàng để săn thêm đồ xịn nhé!</p>
+          </div>
+        )}
+
+        {viewMode === 'shop' && (
+          <GachaMachine 
+            profile={profile} 
+            onSpendCoins={onSpendCoins || (async () => false)} 
+          />
         )}
       </motion.div>
     </div>

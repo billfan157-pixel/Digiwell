@@ -4,11 +4,11 @@ import { toast } from 'sonner';
 import type { QuestEngineContext } from '@/lib/questEngine';
 import { playWaterDropSound } from '@/lib/audio';
 import type { Profile } from '@/models';
+import { expGainedForWater } from '@/config/questConfig';
 
 // ── Constants ──────────────────────────────────────────────
 
 const OFFLINE_QUEUE_KEY = 'digiwell_offline_water_queue';
-const EXP_PER_100ML     = 10; // Standardized EXP gain.
 
 // ── Types ──────────────────────────────────────────────────
 
@@ -39,9 +39,6 @@ interface OfflineQueueItem {
 
 const isRealUser = (id: unknown): id is string =>
   typeof id === 'string' && id.length >= 30;
-
-const calcExp = (amount: number): number => 
-  Math.floor(amount / 100) * EXP_PER_100ML;
 
 const toDateStr = (d = new Date()): string =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; // Local date
@@ -161,6 +158,36 @@ export function useWaterData(
     }
   }, [profile?.id, fetchAllWater]);
 
+  // ── Listen to Smart Bottle Events for Optimistic UI ─────
+  useEffect(() => {
+    const handleSmartBottleEvent = (e: Event) => {
+      const customEvent = e as CustomEvent;
+      const detail = customEvent.detail;
+      
+      if (detail?.source === 'smart_bottle' && detail?.amount_ml > 0) {
+        const now = detail.occurred_at || new Date().toISOString();
+        const newEntry: WaterLog = {
+          id: detail.log_id || `bottle-${Date.now()}`,
+          user_id: profile?.id || '',
+          amount: detail.amount_ml,
+          name: 'DigiBottle',
+          day: toDateStr(),
+          exp: detail.added_exp || 0,
+          created_at: now,
+          timestamp: now,
+          factor: 1,
+        };
+        
+        setWaterEntries(prev => [newEntry, ...prev]);
+      }
+    };
+
+    window.addEventListener('hydrationEvent', handleSmartBottleEvent);
+    return () => {
+      window.removeEventListener('hydrationEvent', handleSmartBottleEvent);
+    };
+  }, [profile?.id]);
+
   // ── Add water ──────────────────────────────────────────
 
   const handleAddWater = useCallback(
@@ -170,7 +197,7 @@ export function useWaterData(
       const actualAmount = Math.round(amount * factor);
       if (actualAmount <= 0) return;
 
-      const exp    = calcExp(actualAmount);
+      const exp    = expGainedForWater(actualAmount, profile.level || 1);
       const now    = new Date().toISOString();
       const today  = toDateStr();
       const tempId = `temp-${Date.now()}`;
@@ -199,6 +226,15 @@ export function useWaterData(
           .single();
 
         if (error) throw error;
+
+        // [QUAN TRỌNG] Gọi RPC để backend tự cộng EXP, Level và Coin an toàn tuyệt đối
+        const rpcRes = await supabase.rpc('process_hydration_event', {
+          p_user_id: profile.id,
+          p_amount_ml: actualAmount
+        });
+        if (rpcRes.error) {
+          console.error('[useWaterData] RPC process_hydration_event error:', rpcRes.error);
+        }
 
         // Swap tempId -> real ID, không cần refetch toàn bộ
         setWaterEntries(prev =>
@@ -302,7 +338,7 @@ export function useWaterData(
       return;
     }
 
-    const newExp      = calcExp(newAmount);
+    const newExp      = expGainedForWater(newAmount, profile?.level || 1);
     const snapshot = waterEntriesRef.current;
     // Tính delta để notify parent đúng số chênh lệch, không phải tổng mới
     const deltaAmount = newAmount - originalEntry.amount;
@@ -351,6 +387,14 @@ export function useWaterData(
       if (error) {
         console.error('[useWaterData] Insert error:', error);
         throw error;
+      }
+
+      // Xử lý cộng EXP cho toàn bộ các lượt uống offline
+      for (const item of queue) {
+        await supabase.rpc('process_hydration_event', {
+          p_user_id: profile.id,
+          p_amount_ml: item.amount
+        });
       }
 
       clearOfflineQueue();
@@ -705,11 +749,14 @@ export const seedSampleWaterLogs = async (userId: string) => {
 
   try {
     for (const log of sampleLogs) {
+      const fakeCreatedAt = new Date(`${log.day}T12:00:00Z`).toISOString();
       await supabase.from('water_logs').insert({
         user_id: userId,
         amount: log.amount,
         name: log.name,
         day: log.day,
+        created_at: fakeCreatedAt,
+        timestamp: fakeCreatedAt,
         exp: Math.floor(log.amount / 100) * 5
       });
     }

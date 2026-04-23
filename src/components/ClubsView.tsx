@@ -385,6 +385,7 @@ export default function ClubsView({ userId }: { userId: string }) {
       <AnimatePresence>
         {selectedClub && (
           <motion.div
+            key="club-dashboard-wrapper"
             initial={{ x: "100%" }}
             animate={{ x: 0 }}
             exit={{ x: "100%" }}
@@ -402,7 +403,7 @@ export default function ClubsView({ userId }: { userId: string }) {
 
       <AnimatePresence>
         {showCreateModal && (
-          <div className="fixed inset-0 z-[150] flex items-center justify-center p-6">
+          <div key="create-club-modal-wrapper" className="fixed inset-0 z-[150] flex items-center justify-center p-6">
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}

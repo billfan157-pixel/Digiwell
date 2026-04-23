@@ -4,8 +4,8 @@ import { X } from 'lucide-react';
 interface EditProfileModalProps {
   showEditProfile: boolean;
   setShowEditProfile: (show: boolean) => void;
-  editProfileData: any;
-  setEditProfileData: (data: any) => void;
+  editProfileData: { nickname: string; gender: string; age: number; height: number; weight: number; activity: string; goal: string; climate?: string; };
+  setEditProfileData: (data: { nickname: string; gender: string; age: number; height: number; weight: number; activity: string; goal: string; climate?: string; }) => void;
   handleSaveProfile: (e: React.FormEvent) => void;
   isUpdatingProfile: boolean;
 }

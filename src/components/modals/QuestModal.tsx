@@ -18,6 +18,8 @@ interface QuestModalProps {
   onClose: () => void;
   userId: string;
   streak: number;
+  waterToday?: number;
+  logCount?: number;
   onRewardClaimed: (exp: number, wp: number) => void;
 }
 
@@ -44,6 +46,8 @@ export default function QuestModal({
   userId,
   streak,
   onRewardClaimed,
+  waterToday,
+  logCount
 }: QuestModalProps) {
   const [filter, setFilter] = useState<QuestFilter>('daily');
   const [claimingId, setClaimingId] = useState<string | null>(null);
@@ -222,7 +226,7 @@ export default function QuestModal({
           ) : (
             <AnimatePresence mode="popLayout">
               {visibleQuests.length > 0 ? (
-                <div className="space-y-4">
+                <div key="quest-list" className="space-y-4">
                   {visibleQuests.map((quest, index) => (
                     <motion.div
                       key={quest.id}
@@ -237,12 +241,15 @@ export default function QuestModal({
                         onClaim={handleClaimReward}
                         isClaiming={claimingId === quest.id}
                         streak={streak}
+                        waterToday={waterToday}
+                        logCount={logCount}
                       />
                     </motion.div>
                   ))}
                 </div>
               ) : (
                 <motion.div
+                  key="empty-quests"
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   className="text-center py-16 rounded-3xl border border-dashed border-white/10 bg-white/5"

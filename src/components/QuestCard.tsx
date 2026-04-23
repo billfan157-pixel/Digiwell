@@ -3,12 +3,15 @@ import { motion, AnimatePresence, type Variants } from 'framer-motion';
 import { Gift, Zap, CheckCircle2, Loader2, Sparkles, Flame, Star, Info, Volume2, Award } from 'lucide-react';
 
 import type { UserQuest } from '../config/questConfig';
+import { playSound } from '../lib/audio';
 
 interface QuestCardProps {
   userQuest: UserQuest;
   onClaim: (id: string) => void | Promise<void>;
   isClaiming?: boolean;
   streak?: number;
+  waterToday?: number;
+  logCount?: number;
 }
 
 const rarityStyle: Record<string, { border: string; bg: string; shadow: string }> = {
@@ -44,7 +47,7 @@ const burstVariants: Variants = {
   },
 };
 
-export const QuestCard: React.FC<QuestCardProps> = ({ userQuest, onClaim, isClaiming = false, streak = 0 }) => {
+export const QuestCard: React.FC<QuestCardProps> = ({ userQuest, onClaim, isClaiming = false, streak = 0, waterToday, logCount }) => {
   const [showBurst, setShowBurst] = useState(false);
   const [floatingText, setFloatingText] = useState<string | null>(null);
   const [showBreakdown, setShowBreakdown] = useState(false);
@@ -69,18 +72,24 @@ export const QuestCard: React.FC<QuestCardProps> = ({ userQuest, onClaim, isClai
   if (numMultiplier >= 3.0) evoState = 'hyper';
   else if (numMultiplier >= 1.5) evoState = 'boosted';
 
-  const progress = useMemo(() => {
+  // HACK: Đồng bộ Realtime từ Frontend thay vì đợi Database (Khắc phục độ trễ)
+  const actualProgress = useMemo(() => {
+    let p = userQuest.progress;
+    if (userQuest.status === 'active') {
+      if (userQuest.quest.condition_type === 'drink_today' && waterToday !== undefined) p = Math.max(p, waterToday);
+      if (userQuest.quest.condition_type === 'log_count' && logCount !== undefined) p = Math.max(p, logCount);
+      if (userQuest.quest.condition_type === 'drink_streak' && streak !== undefined) p = Math.max(p, streak);
+    }
+    return p;
+  }, [userQuest.progress, userQuest.status, userQuest.quest.condition_type, waterToday, logCount, streak]);
+
+  const progressPercent = useMemo(() => {
     if (!userQuest.quest.condition_value) return 0;
-    return Math.min((userQuest.progress / userQuest.quest.condition_value) * 100, 100);
-  }, [userQuest.progress, userQuest.quest.condition_value]);
+    return Math.min((actualProgress / userQuest.quest.condition_value) * 100, 100);
+  }, [actualProgress, userQuest.quest.condition_value]);
 
-  const canClaim = userQuest.status === 'completed' && !isClaimed && !isClaiming;
-
-  // 🎧 SOUND HOOK SYSTEM
-  const playSound = (type: 'hover' | 'click' | 'claim' | 'hyper') => {
-    // Để cắm sound thật: const audio = new Audio(`/sounds/${type}.mp3`); audio.play();
-    // Tạm thời comment lại để sếp tự ghép file audio sau
-  };
+  const isCompleted = userQuest.status === 'completed' || actualProgress >= userQuest.quest.condition_value;
+  const canClaim = isCompleted && !isClaimed && !isClaiming;
 
   const handleClaim = () => {
     playSound(evoState === 'hyper' ? 'hyper' : 'claim');
@@ -103,12 +112,11 @@ export const QuestCard: React.FC<QuestCardProps> = ({ userQuest, onClaim, isClai
       className={`relative overflow-hidden p-5 rounded-3xl border transition-all duration-300 backdrop-blur-sm ${
         isClaimed
           ? 'bg-slate-800/40 border-slate-700/40 opacity-60 grayscale-[40%]'
-          : userQuest.status === 'completed'
+          : isCompleted
             ? 'bg-gradient-to-br from-yellow-500/10 via-amber-500/10 to-transparent border-amber-400/50 shadow-[0_0_30px_rgba(245,158,11,0.15)]'
             : `${style.bg} ${style.border} ${style.shadow}`
       }`}
     >
-      {/* 🧬 EVOLUTION AURA (HYPER STATE) */}
       {evoState === 'hyper' && !isClaimed && (
         <div className="absolute inset-0 pointer-events-none bg-[url('https://www.transparenttextures.com/patterns/stardust.png')] opacity-30 animate-[spin_60s_linear_infinite]" />
       )}
@@ -122,6 +130,7 @@ export const QuestCard: React.FC<QuestCardProps> = ({ userQuest, onClaim, isClai
       <AnimatePresence>
         {showBurst && (
           <motion.div
+            key="burst-fx"
             variants={burstVariants}
             initial="hidden"
             animate="show"
@@ -137,6 +146,7 @@ export const QuestCard: React.FC<QuestCardProps> = ({ userQuest, onClaim, isClai
       <AnimatePresence>
         {floatingText && (
           <motion.div
+            key="floating-text"
             initial={{ opacity: 0, y: 10, scale: 0.5 }}
             animate={{ opacity: 1, y: -40, scale: 1.5 }}
             exit={{ opacity: 0 }}
@@ -222,6 +232,7 @@ export const QuestCard: React.FC<QuestCardProps> = ({ userQuest, onClaim, isClai
           <AnimatePresence>
             {showBreakdown && !isClaimed && (
               <motion.div
+                key="breakdown-tooltip"
                 initial={{ opacity: 0, y: 10, scale: 0.9 }}
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 exit={{ opacity: 0, y: 5, scale: 0.95 }}
@@ -271,25 +282,25 @@ export const QuestCard: React.FC<QuestCardProps> = ({ userQuest, onClaim, isClai
       <div className="mt-5 space-y-2 relative z-10">
         <div className="flex justify-between text-[10px] font-mono">
           <span className="text-slate-500 uppercase font-bold tracking-wider">Tiến độ</span>
-          <span className={userQuest.status === 'completed' ? 'text-amber-400 font-bold' : 'text-slate-300'}>
-            {userQuest.progress.toLocaleString()} / {userQuest.quest.condition_value.toLocaleString()}
+          <span className={isCompleted ? 'text-amber-400 font-bold' : 'text-slate-300'}>
+            {actualProgress.toLocaleString()} / {userQuest.quest.condition_value.toLocaleString()}
           </span>
         </div>
 
         <div className="h-2 w-full bg-black/40 rounded-full overflow-hidden border border-white/10 relative">
           <motion.div
             initial={{ width: 0 }}
-            animate={{ width: `${progress}%` }}
+            animate={{ width: `${progressPercent}%` }}
             transition={{ duration: 0.8, ease: "easeOut" }}
             className={`h-full absolute left-0 top-0 ${
-              userQuest.status === 'completed'
+              isCompleted
                 ? evoState === 'hyper' 
                   ? 'bg-gradient-to-r from-orange-500 via-red-500 to-purple-600' // Thanh máu Hyper
                   : 'bg-gradient-to-r from-yellow-400 via-amber-400 to-yellow-500'
                 : 'bg-cyan-500'
             }`}
           >
-            {userQuest.status === 'completed' && <div className="absolute inset-0 bg-white/20 animate-[shimmer_1s_infinite] -skew-x-12" />}
+            {isCompleted && <div className="absolute inset-0 bg-white/20 animate-[shimmer_1s_infinite] -skew-x-12" />}
           </motion.div>
         </div>
       </div>
@@ -298,8 +309,7 @@ export const QuestCard: React.FC<QuestCardProps> = ({ userQuest, onClaim, isClai
       <div className="mt-5 pt-4 border-t border-white/10 flex justify-end relative z-10">
         {isClaimed ? (
           <div className="flex items-center gap-2 text-emerald-500 font-bold text-sm">
-            <CheckCircle2 size={18} />
-            Đã nhận thưởng
+
           </div>
         ) : (
           <motion.button

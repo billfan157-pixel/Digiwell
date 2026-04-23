@@ -37,6 +37,8 @@
 
     <!-- Permissions -->
     <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.VIBRATE" />
+    <uses-permission android:name="android.permission.USE_BIOMETRIC" />
     
     <!-- Notifications - Required for hydration reminders -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />

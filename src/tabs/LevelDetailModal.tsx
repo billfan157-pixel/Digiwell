@@ -48,7 +48,7 @@ export default function LevelDetailModal({ isOpen, onClose, level, exp }: LevelD
   return (
     <AnimatePresence>
       {isOpen && (
-        <div className="fixed inset-0 z-[150] flex items-center justify-center p-4">
+        <div key="level-detail-overlay" className="fixed inset-0 z-[150] flex items-center justify-center p-4">
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}

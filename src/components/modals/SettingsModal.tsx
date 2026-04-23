@@ -11,6 +11,11 @@ import { useSettings } from '../../hooks/useSettings';
 import { useBiometric } from '../../hooks/useBiometric';
 import type { Profile } from '../../models';
 import { LocalNotifications } from '@capacitor/local-notifications';
+import { registerPlugin } from '@capacitor/core';
+import Cropper from 'react-easy-crop';
+
+// Khai báo Plugin tự chế
+const WidgetPlugin = registerPlugin<any>('WidgetPlugin');
 
 // ================= BUTTON VARIANTS =================
 const btnPrimary = "w-full bg-cyan-500 text-white rounded-full py-4 px-6 font-bold hover:bg-cyan-400 active:scale-95 transition-all flex items-center justify-center gap-2";
@@ -49,17 +54,49 @@ const BottomSheetWrapper = ({ children, title, onClose }: { children: React.Reac
   </motion.div>
 );
 
+// ================= HÀM HỖ TRỢ CẮT ẢNH =================
+const createImage = (url: string) =>
+  new Promise<HTMLImageElement>((resolve, reject) => {
+    const image = new Image();
+    image.addEventListener('load', () => resolve(image));
+    image.addEventListener('error', (error) => reject(error));
+    image.src = url;
+  });
+
+async function getCroppedImg(
+  imageSrc: string,
+  pixelCrop: { x: number; y: number; width: number; height: number }
+) {
+  const image = await createImage(imageSrc);
+  const canvas = document.createElement('canvas');
+  const ctx = canvas.getContext('2d');
+
+  if (!ctx) return null;
+
+  // Ép kích thước chuẩn 400x400 cho Avatar vuông/tròn để nhẹ và đều nhau
+  canvas.width = 400;
+  canvas.height = 400;
+
+  ctx.drawImage(image, pixelCrop.x, pixelCrop.y, pixelCrop.width, pixelCrop.height, 0, 0, 400, 400);
+
+  return new Promise<Blob | null>((resolve) => {
+    canvas.toBlob((blob) => {
+      resolve(blob);
+    }, 'image/jpeg', 0.9);
+  });
+}
+
 interface SettingsModalProps {
   isOpen: boolean;
   onClose: () => void;
   profile: Profile;
-  setProfile: (p: any) => void;
+  setProfile: (p: Profile) => void;
   handleLogout: () => void;
 }
 
 export default function SettingsModal({ isOpen, onClose, profile, setProfile, handleLogout }: SettingsModalProps) {
   const { settings, updateSettings, isSaving, lastSync, triggerHaptic } = useSettings(profile);
-  const [activeSheet, setActiveSheet] = useState<'none' | 'personal' | 'frequency' | 'quiet' | 'privacy' | 'delete' | 'name'>('none');
+  const [activeSheet, setActiveSheet] = useState<'none' | 'personal' | 'frequency' | 'quiet' | 'privacy' | 'delete' | 'name' | 'widget'>('none');
   
   // ================= ĐÃ ĐỒNG BỘ TOÀN BỘ BIẾN VÀO ĐÂY =================
   // FIX: Khởi tạo state với giá trị mặc định hợp lệ (chuẩn tiếng Anh)
@@ -70,6 +107,12 @@ export default function SettingsModal({ isOpen, onClose, profile, setProfile, ha
   const [draftQuiet, setDraftQuiet] = useState({ start: '22:00', end: '07:00' });
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // ================= STATES CHO CROPPER =================
+  const [cropImage, setCropImage] = useState<string | null>(null);
+  const [crop, setCrop] = useState({ x: 0, y: 0 });
+  const [zoom, setZoom] = useState(1);
+  const [croppedAreaPixels, setCroppedAreaPixels] = useState<any>(null);
 
   // BIOMETRIC HOOK
   const { registerBiometric, disableBiometric, getBiometricStatus, isRegistering } = useBiometric();
@@ -92,22 +135,43 @@ export default function SettingsModal({ isOpen, onClose, profile, setProfile, ha
     setActiveSheet('none');
   };
 
-  const handleUploadAvatar = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file || !profile?.id) return;
+    if (!file) return;
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = () => {
+      setCropImage(reader.result as string);
+    };
+    e.target.value = ''; // Reset input để có thể chọn lại cùng 1 file
+  };
+
+  const handleCropConfirm = async () => {
+    if (!cropImage || !croppedAreaPixels || !profile?.id) return;
     
-    const toastId = toast.loading('Đang tải ảnh lên...');
+    const toastId = toast.loading('Đang cắt và tải ảnh lên...');
     try {
-      const fileExt = file.name.split('.').pop();
-      const filePath = `${profile.id}/${Date.now()}.${fileExt}`;
+      const croppedBlob = await getCroppedImg(cropImage, croppedAreaPixels);
+      if (!croppedBlob) throw new Error('Không thể cắt ảnh');
       
-      const { error: uploadError } = await supabase.storage.from('avatars').upload(filePath, file, { upsert: true });
+      const filePath = `${profile.id}/${Date.now()}.jpg`;
+      const { error: uploadError } = await supabase.storage.from('avatars').upload(filePath, croppedBlob, { upsert: true, contentType: 'image/jpeg' });
       if (uploadError) throw uploadError;
       
       const { data } = supabase.storage.from('avatars').getPublicUrl(filePath);
-      await updateSettings({ avatarUrl: data.publicUrl });
+      const newAvatarUrl = data.publicUrl;
+
+      // FIX: Trực tiếp cập nhật vào database và đợi hoàn tất
+      const { error: dbError } = await supabase
+        .from('profiles')
+        .update({ avatar_url: newAvatarUrl })
+        .eq('id', profile.id);
+      if (dbError) throw dbError;
+
+      setProfile({ ...profile, avatar_url: newAvatarUrl });
       
       toast.success('Đã cập nhật ảnh đại diện', { id: toastId });
+      setCropImage(null);
       triggerHaptic();
     } catch (err: any) {
       toast.error('Lỗi tải ảnh: ' + err.message, { id: toastId });
@@ -193,7 +257,8 @@ export default function SettingsModal({ isOpen, onClose, profile, setProfile, ha
   const formatVol = (ml: number) => settings.unit === 'oz' ? `${(ml * 0.033814).toFixed(1)} oz` : `${ml} ml`;
 
   return (
-    <AnimatePresence>
+    <React.Fragment>
+      <AnimatePresence>
       {isOpen && (
         <motion.div 
           key="settings-modal-overlay"
@@ -216,11 +281,17 @@ export default function SettingsModal({ isOpen, onClose, profile, setProfile, ha
                 
                 <button onClick={() => { triggerHaptic(); fileInputRef.current?.click(); }} className="w-full flex items-center justify-between p-4 bg-transparent hover:bg-slate-100 dark:hover:bg-white/5 active:bg-slate-200 dark:active:bg-white/10 transition-colors border-b border-slate-200 dark:border-white/5">
                   <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-lg bg-indigo-500/20 text-indigo-400 flex items-center justify-center"><Camera size={18} /></div>
+                    <div className="w-10 h-10 rounded-full bg-indigo-500/20 text-indigo-400 flex items-center justify-center border border-indigo-500/30 overflow-hidden shadow-inner">
+                      {profile?.avatar_url || settings.avatarUrl ? (
+                        <img src={profile?.avatar_url || settings.avatarUrl} alt="Avatar" className="w-full h-full object-cover" />
+                      ) : (
+                        <Camera size={18} />
+                      )}
+                    </div>
                     <span className="text-slate-800 dark:text-white font-medium">Đổi ảnh đại diện</span>
                   </div>
                   <ChevronRight size={18} className="text-slate-400 dark:text-white/40" />
-                  <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleUploadAvatar} />
+                  <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleFileSelect} />
                 </button>
 
                 {/* NÚT MỞ BOTTOM SHEET CÁ NHÂN */}
@@ -356,7 +427,10 @@ export default function SettingsModal({ isOpen, onClose, profile, setProfile, ha
                   </div>
                   <div className="flex gap-3">
                   {['#06b6d4', '#a855f7', '#f59e0b'].map((color, index) => (
-                  <button key={`color-${index}`} onClick={() => updateSettings({ themeColor: color })} className="w-6 h-6 rounded-full flex items-center justify-center border-2 border-slate-900 transition-transform active:scale-90" style={{ backgroundColor: color, boxShadow: settings.themeColor === color ? `0 0 10px ${color}` : 'none' }}>
+                  <button key={`color-${index}`} onClick={() => { 
+                    updateSettings({ themeColor: color });
+                    window.dispatchEvent(new CustomEvent('themeUpdated', { detail: { themeColor: color } }));
+                  }} className="w-6 h-6 rounded-full flex items-center justify-center border-2 border-slate-900 transition-transform active:scale-90" style={{ backgroundColor: color, boxShadow: settings.themeColor === color ? `0 0 10px ${color}` : 'none' }}>
                       {settings.themeColor === color && <Check size={12} className="text-white" />}
                     </button>
                   ))}
@@ -406,6 +480,7 @@ export default function SettingsModal({ isOpen, onClose, profile, setProfile, ha
           </div>
         </motion.div>
       )}
+      </AnimatePresence>
 
       {/* ================= SUB-MODALS (BOTTOM SHEETS) ================= */}
       <AnimatePresence>
@@ -421,8 +496,8 @@ export default function SettingsModal({ isOpen, onClose, profile, setProfile, ha
           <BottomSheetWrapper key="section-personal" title="Thông tin cá nhân" onClose={closeSheet}>
             <div className="flex items-center gap-4 mb-6 p-4 bg-slate-100 dark:bg-slate-800/50 rounded-2xl border border-slate-300 dark:border-white/5">
               <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-cyan-500 to-blue-500 flex items-center justify-center shadow-lg overflow-hidden flex-shrink-0">
-                {settings.avatarUrl ? (
-                  <img src={settings.avatarUrl} alt="avatar" className="w-full h-full object-cover" />
+                {profile?.avatar_url || settings.avatarUrl ? (
+                  <img src={profile?.avatar_url || settings.avatarUrl} alt="avatar" className="w-full h-full object-cover" />
                 ) : (
                   <span className="text-2xl font-black text-white dark:text-white">{(profile?.nickname || 'U').charAt(0).toUpperCase()}</span>
                 )}
@@ -547,7 +622,110 @@ export default function SettingsModal({ isOpen, onClose, profile, setProfile, ha
             </div>
           </BottomSheetWrapper>
         )}
+
+        {activeSheet === 'widget' && (
+          <BottomSheetWrapper key="section-widget" title="Widget Màn hình chính" onClose={closeSheet}>
+            <div className="p-4 rounded-2xl bg-slate-100 dark:bg-slate-800/50 border border-slate-300 dark:border-white/5 mb-6">
+              <p className="text-slate-900 dark:text-white font-bold mb-4">Xem trước Widget (1x1)</p>
+              
+              {/* Widget Preview Mockup */}
+              <div className="w-full max-w-[160px] mx-auto aspect-square rounded-[2rem] bg-slate-900 border border-white/10 p-4 relative overflow-hidden shadow-2xl flex flex-col justify-between" style={{ borderColor: `${settings.themeColor}50` }}>
+                <div className="absolute top-0 right-0 w-24 h-24 blur-2xl rounded-full pointer-events-none" style={{ backgroundColor: `${settings.themeColor}30` }} />
+                
+                <div className="flex justify-between items-start relative z-10">
+                  <div>
+                    <p className="text-[10px] font-bold" style={{ color: settings.themeColor }}>Hôm nay</p>
+                    <p className="text-xl font-black text-white leading-none">{(profile?.water_today || 0)}</p>
+                    <p className="text-[8px] text-slate-400">/ {settings.waterGoal || 2000} ml</p>
+                  </div>
+                  <Droplets size={16} style={{ color: settings.themeColor }} />
+                </div>
+                
+                {/* Progress bar */}
+                <div className="h-1.5 w-full bg-white/10 rounded-full overflow-hidden mt-auto mb-3 relative z-10">
+                  <div className="h-full transition-all" style={{ width: `${Math.min(((profile?.water_today || 0) / (settings.waterGoal || 2000)) * 100, 100)}%`, backgroundColor: settings.themeColor }} />
+                </div>
+                
+                {/* Quick Add Buttons */}
+                <div className="flex gap-1.5 relative z-10">
+                  <div className="flex-1 py-1.5 rounded-lg bg-white/10 text-center text-[9px] font-bold text-white">+100</div>
+                  <div className="flex-1 py-1.5 rounded-lg text-center text-[9px] font-bold text-slate-900 shadow-lg" style={{ backgroundColor: settings.themeColor }}>+250</div>
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-4 mb-6">
+              <div className="p-4 rounded-xl bg-cyan-500/10 border border-cyan-500/20">
+                <h4 className="text-cyan-400 font-bold text-sm mb-2 flex items-center gap-2"><Smartphone size={16} /> Hướng dẫn thêm Widget</h4>
+                <ul className="text-slate-300 text-xs space-y-2 list-decimal pl-4">
+                  <li>Thoát ra màn hình chính điện thoại (Home Screen)</li>
+                  <li>Nhấn giữ vào vùng trống bất kỳ trên màn hình</li>
+                  <li>Chọn <strong>Thêm Widget (Dấu +)</strong> ở góc trái</li>
+                  <li>Tìm <strong>DigiWell</strong> và chọn kích thước bạn thích</li>
+                </ul>
+              </div>
+              <button onClick={async () => { 
+                triggerHaptic(); 
+                localStorage.setItem('digiwell_widget_sync', JSON.stringify({
+                  water_today: profile?.water_today,
+                  water_goal: settings.waterGoal,
+                  themeColor: settings.themeColor
+                }));
+                
+                // Đẩy dữ liệu xuyên qua màng Native iOS
+                try {
+                  await WidgetPlugin.syncData({
+                    water_today: profile?.water_today || 0,
+                    water_goal: settings.waterGoal || 2000,
+                    themeColor: settings.themeColor || '#06b6d4'
+                  });
+                } catch (e) { console.log('Bỏ qua vì không chạy trên iOS Native'); }
+
+                toast.success('Đã đồng bộ giao diện và dữ liệu ra Widget!'); 
+                closeSheet(); 
+              }} className={btnPrimary} style={{ backgroundColor: settings.themeColor }}>
+                Đồng bộ ngay ra Widget
+              </button>
+            </div>
+          </BottomSheetWrapper>
+        )}
       </AnimatePresence>
-    </AnimatePresence>
+
+      {/* ================= MODAL CROP ẢNH (CROPPER) ================= */}
+      <AnimatePresence>
+        {cropImage && (
+          <motion.div
+            key="cropper-modal"
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.95 }}
+            className="fixed inset-0 z-[300] bg-slate-950 flex flex-col"
+          >
+            <div className="flex justify-between items-center p-4 bg-slate-900 border-b border-white/10 z-10 pt-10">
+              <button onClick={() => setCropImage(null)} className="text-slate-400 hover:text-white px-4 py-2 font-bold">Hủy</button>
+              <h3 className="text-white font-bold">Chỉnh sửa Avatar</h3>
+              <button onClick={handleCropConfirm} className="text-cyan-400 hover:text-cyan-300 font-bold px-4 py-2">Xong</button>
+            </div>
+            <div className="flex-1 relative bg-black">
+              <Cropper
+                image={cropImage}
+                crop={crop}
+                zoom={zoom}
+                aspect={1}
+                cropShape="round"
+                showGrid={false}
+                onCropChange={setCrop}
+                onCropComplete={(_, croppedAreaPixels) => setCroppedAreaPixels(croppedAreaPixels)}
+                onZoomChange={setZoom}
+              />
+            </div>
+            <div className="p-8 bg-slate-900 border-t border-white/10 z-10 pb-12 flex items-center gap-4">
+              <span className="text-slate-400 text-sm font-bold">Thu phóng</span>
+              <input type="range" value={zoom} min={1} max={3} step={0.05} onChange={(e) => setZoom(Number(e.target.value))} className="flex-1 accent-cyan-500 h-1 bg-slate-700 rounded-lg appearance-none cursor-pointer" />
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </React.Fragment>
   );
 }

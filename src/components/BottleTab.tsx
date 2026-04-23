@@ -8,6 +8,7 @@ import type { ActiveView, LabSectionKey, LedPattern, RuleTrigger, RuleAction, Au
 import { CAPACITY, FIRMWARE_VERSION, LAB_BUILD, ledColors, createPresetRules, buildRuleDescription } from './constants';
 import { DeviceHero, ControlDeck, ArenaPaywall } from './DeviceComponents';
 import { DiagnosticsPanel, LedPatternStudio, AutomationCenter, DeveloperModePanel, DeviceConsole } from './LabComponents';
+import AvatarFrame from './AvatarFrame';
 
 export default function BottleTab({
   profile,
@@ -185,7 +186,17 @@ export default function BottleTab({
 
   return (
     <div className="animate-in fade-in zoom-in duration-300 pb-10 space-y-4">
-      <div className="px-4 pt-4">
+      {/* Header & Avatar */}
+      <div className="flex justify-between items-center pt-6 px-6">
+        <div className="flex-1">
+          <h1 className="text-3xl font-black tracking-tight text-white">Thiết bị</h1>
+        </div>
+        <div className="flex items-center justify-center">
+          <AvatarFrame size="sm" level={profile?.level || 1} avatarUrl={profile?.avatar_url} nickname={profile?.nickname} showBadge={false} />
+        </div>
+      </div>
+
+      <div className="px-4 pt-2">
         <div className="rounded-[1.9rem] border border-white/10 bg-[radial-gradient(circle_at_top_left,rgba(34,211,238,0.18),transparent_30%),linear-gradient(145deg,rgba(15,23,42,0.95),rgba(2,6,23,0.92))] shadow-[0_18px_50px_rgba(8,47,73,0.26)] overflow-hidden">
           <div className="p-5 border-b border-white/10 flex flex-col gap-4">
             <div>

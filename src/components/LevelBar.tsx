@@ -71,7 +71,7 @@ const LevelBar = ({
             </div>
 
             <p className="text-slate-500 text-[10px] uppercase tracking-widest font-bold mt-1">
-              {progressInLevel.toLocaleString()} / {requiredExpForLevel.toLocaleString()} EXP (Level {safeLevel})
+              {exp.toLocaleString()} / {nextLevelExp.toLocaleString()} EXP (Level {safeLevel})
             </p>
           </div>
         </div>
@@ -109,7 +109,7 @@ const LevelBar = ({
         </span>
 
         <span className="text-amber-400 font-semibold">
-          Còn {(requiredExpForLevel - progressInLevel).toLocaleString()} EXP đến Level {safeLevel + 1}
+          Còn {remainingExp.toLocaleString()} EXP đến Level {safeLevel + 1}
         </span>
       </div>
     </div>

@@ -1,81 +1,96 @@
-import { Bot, Send, Sparkles, X } from 'lucide-react';
-import { useEffect, useRef } from 'react';
+import React from 'react';
+import { X } from 'lucide-react';
+import { useModalStore } from '../../store/useModalStore';
+import TypingIndicator from '../TypingIndicator';
+import { motion, AnimatePresence } from 'framer-motion';
 
-interface AiChatModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  messages: { role: string; content: string }[];
-  isLoading: boolean;
-  input: string;
-  onInputChange: (value: string) => void;
-  onSubmit: (e: React.FormEvent) => void;
+export interface ChatMessage {
+  role: 'user' | 'model' | 'assistant' | 'system';
+  content: string;
 }
 
-export default function AiChatModal({
-  isOpen,
-  onClose,
-  messages,
-  isLoading,
-  input,
-  onInputChange,
-  onSubmit,
-}: AiChatModalProps) {
-  const chatEndRef = useRef<HTMLDivElement>(null);
+interface AiChatModalProps {
+  chatMessages: ChatMessage[];
+  isChatLoading: boolean;
+  chatInput: string;
+  setChatInput: (val: string) => void;
+  handleSendChatMessage: (e: React.FormEvent) => void;
+}
 
-  useEffect(() => {
-    if (isOpen && chatEndRef.current) {
-      setTimeout(() => {
-        chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-      }, 100);
-    }
-  }, [messages, isLoading, isOpen]);
+const QUICK_PROMPTS = [
+  "Tôi vừa uống 1 ly cà phê ☕",
+  "Hôm nay trời nóng quá 🥵",
+  "Tôi chuẩn bị đi tập Gym 💪",
+  "Nên uống bao nhiêu nước lúc này? 🤔"
+];
 
-  if (!isOpen) return null;
+export default function AiChatModal({ chatMessages, isChatLoading, chatInput, setChatInput, handleSendChatMessage }: AiChatModalProps) {
+  const { showAiChat, setShowAiChat } = useModalStore();
 
   return (
-    <div className="fixed inset-0 z-[100] flex flex-col bg-slate-950">
-      <div className="flex items-center justify-between px-5 pt-8 pb-4 border-b border-slate-800 bg-slate-900/80 backdrop-blur-md sticky top-0 z-10">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-indigo-500/20 border border-indigo-500/30 flex items-center justify-center shadow-inner">
-            <Bot size={20} className="text-indigo-400" />
+    <AnimatePresence>
+      {showAiChat && (
+        <motion.div 
+          key="ai-chat-modal"
+          initial={{ y: "100%" }}
+          animate={{ y: 0 }}
+          exit={{ y: "100%" }}
+          transition={{ type: "spring", damping: 25, stiffness: 200 }}
+          drag="y"
+          dragConstraints={{ top: 0 }}
+          dragElastic={0.2}
+          onDragEnd={(e, { offset, velocity }) => {
+            if (offset.y > 150 || velocity.y > 500) setShowAiChat(false);
+          }}
+          className="fixed inset-0 z-[110] bg-slate-950 flex flex-col"
+        >
+          {/* Thanh kéo mờ (Pull handle) báo hiệu vuốt */}
+          <div className="w-12 h-1.5 bg-white/20 rounded-full mx-auto mt-3 shrink-0" />
+          
+        <div className="p-6 border-b border-white/5 flex justify-between items-center bg-slate-900/50 backdrop-blur-md">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-cyan-500 to-blue-600 flex items-center justify-center text-white font-bold shadow-lg shadow-cyan-500/20">🤖</div>
+            <div>
+              <h3 className="text-white font-black leading-none">DigiCoach AI</h3>
+              <p className="text-[10px] text-emerald-400 uppercase tracking-widest mt-1 italic">Gemini 2.0 Engine</p>
+            </div>
           </div>
-          <div>
-            <h3 className="text-white font-black text-lg">DigiWell AI</h3>
-            <p className="text-indigo-400 text-[10px] uppercase tracking-widest font-bold flex items-center gap-1">
-              <Sparkles size={10} /> Trợ lý Premium
-            </p>
-          </div>
+          <button onClick={() => setShowAiChat(false)} className="p-2 bg-white/5 rounded-xl text-slate-400"><X /></button>
         </div>
-        <button onClick={onClose} className="w-8 h-8 rounded-full bg-slate-800 flex items-center justify-center text-slate-400 hover:text-white active:scale-95 transition-all">
-          <X size={18} />
-        </button>
-      </div>
-
-      <div className="flex-1 overflow-y-auto p-5 space-y-5 scrollbar-hide">
-        {messages.length === 0 && !isLoading && (
-          <div className="flex flex-col items-center justify-center h-full opacity-50 space-y-4">
-            <Bot size={48} className="text-indigo-400" />
-            <p className="text-slate-400 text-sm text-center">
-              Hãy thử: "Ghi nhận giúp tôi 1 ly trà đào 300ml"<br/>hoặc hỏi về chế độ dinh dưỡng.
-            </p>
+        <div className="flex-1 overflow-y-auto p-6 space-y-4">
+          {chatMessages.map((msg, index) => (
+            <div key={`global-chat-msg-${index}`} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+              <div className={`max-w-[80%] p-4 rounded-2xl text-sm ${msg.role === 'user' ? 'bg-cyan-600 text-white rounded-tr-none' : 'bg-slate-800 text-slate-200 rounded-tl-none border border-white/5'}`}>{msg.content}</div>
+            </div>
+          ))}
+          {isChatLoading && (
+            <div className="flex justify-start animate-in fade-in slide-in-from-bottom-2">
+              <TypingIndicator />
+            </div>
+          )}
+        </div>
+        <form onSubmit={handleSendChatMessage} className="p-6 bg-slate-900 border-t border-white/5">
+          {/* Gợi ý câu hỏi nhanh (Quick Prompts) */}
+          <div className="flex gap-2 overflow-x-auto scrollbar-hide mb-4 w-full pb-1 -mx-2 px-2">
+            {QUICK_PROMPTS.map((prompt, idx) => (
+              <button
+                key={idx}
+                type="button"
+                onClick={() => setChatInput(prompt)}
+                className="whitespace-nowrap px-4 py-2 rounded-full bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 text-xs font-bold hover:bg-cyan-500/20 active:scale-95 transition-all shadow-[0_0_10px_rgba(6,182,212,0.1)]"
+              >
+                {prompt}
+              </button>
+            ))}
           </div>
-        )}
-        {messages.map((msg, index) => (
-          <div key={`ai-msg-${index}`} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-            {msg.role !== 'user' && <div className="w-8 h-8 rounded-full bg-indigo-500/20 border border-indigo-500/30 flex items-center justify-center mr-2 flex-shrink-0 self-end mb-1"><Bot size={14} className="text-indigo-400" /></div>}
-            <div className={`max-w-[75%] p-3.5 rounded-2xl shadow-sm ${msg.role === 'user' ? 'bg-cyan-500 text-slate-900 rounded-br-sm font-medium' : 'bg-slate-800 border border-slate-700 text-slate-200 rounded-bl-sm'}`}><p className="text-sm leading-relaxed whitespace-pre-wrap">{msg.content}</p></div>
-          </div>
-        ))}
-        {isLoading && <div className="flex justify-start items-end"><div className="w-8 h-8 rounded-full bg-indigo-500/20 border border-indigo-500/30 flex items-center justify-center mr-2 flex-shrink-0 mb-1"><Bot size={14} className="text-indigo-400" /></div><div className="max-w-[75%] p-4 rounded-2xl bg-slate-800 border border-slate-700 text-slate-400 rounded-bl-sm flex gap-1.5 items-center h-[46px]"><div className="w-2 h-2 rounded-full bg-indigo-400/70 animate-bounce" /><div className="w-2 h-2 rounded-full bg-indigo-400/70 animate-bounce" style={{ animationDelay: '0.15s' }} /><div className="w-2 h-2 rounded-full bg-indigo-400/70 animate-bounce" style={{ animationDelay: '0.3s' }} /></div></div>}
-        <div ref={chatEndRef} className="h-2" />
-      </div>
 
-      <div className="p-4 bg-slate-900/95 border-t border-slate-800 backdrop-blur-xl pb-8">
-        <form onSubmit={onSubmit} className="flex gap-2">
-          <input type="text" value={input} onChange={(e) => onInputChange(e.target.value)} placeholder="Hỏi AI hoặc nhờ thêm nước..." className="flex-1 bg-slate-800/80 border border-slate-700 rounded-full px-5 py-3.5 text-sm text-white outline-none focus:border-cyan-500 shadow-inner" />
-          <button type="submit" disabled={isLoading || !input.trim()} className="w-[50px] h-[50px] rounded-full bg-cyan-500 flex items-center justify-center text-slate-900 disabled:opacity-50 active:scale-95 transition-all shadow-[0_0_15px_rgba(6,182,212,0.3)] flex-shrink-0"><Send size={20} className="ml-1" /></button>
+          <div className="relative">
+            <input value={chatInput} onChange={(e) => setChatInput(e.target.value)} placeholder="Hỏi AI về sức khỏe của đệ..." className="w-full py-4 pl-6 pr-14 bg-slate-800 rounded-2xl text-white text-sm outline-none focus:ring-2 ring-cyan-500/50 transition-all" />
+            <button type="submit" className="absolute right-2 top-2 bottom-2 px-4 bg-cyan-500 text-slate-950 rounded-xl font-bold hover:bg-cyan-400 transition-colors">Gửi</button>
+          </div>
         </form>
-      </div>
-    </div>
+        </motion.div>
+      )}
+    </AnimatePresence>
   );
 }

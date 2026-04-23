@@ -1,26 +1,10 @@
-import { Swords, Trophy, Zap, Target, Clock, TrendingUp, X, ChevronRight, Coins, Shield, Flame, Activity } from 'lucide-react';
-import { useState } from 'react';
+import { Swords, Trophy, Zap, Target, Clock, TrendingUp, X, ChevronRight, Coins, Shield, Flame, Activity, Loader2 } from 'lucide-react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
 import CountUp from '../components/CountUp';
-
-// ── Types ──────────────────────────────────────────────────
-
-interface Battle {
-  id: string;
-  opponent: {
-    nickname: string;
-    level: number;
-    avatar?: string;
-  };
-  status: 'active' | 'pending' | 'completed';
-  wager: number;
-  mode: 'daily' | 'quick' | 'tournament';
-  yourProgress: number;
-  opponentProgress: number;
-  endsAt: Date;
-  result?: 'win' | 'loss' | 'draw';
-}
+import { supabase } from '../lib/supabase';
+import type { Profile, Battle } from '../models';
 
 interface ArenaStats {
   wins: number;
@@ -34,68 +18,59 @@ interface ArenaStats {
 }
 
 interface ArenaTabProps {
-  profile: any;
+  profile: Profile | null;
 }
-
-// ── Mock Data ──────────────────────────────────────────────
-
-const MOCK_STATS: ArenaStats = {
-  wins: 23,
-  losses: 8,
-  draws: 2,
-  winStreak: 5,
-  bestStreak: 12,
-  rank: 47,
-  rating: 1834,
-  totalCoins: 2450,
-};
-
-const MOCK_BATTLES: Battle[] = [
-  {
-    id: '1',
-    opponent: { nickname: 'HydroKing', level: 18 },
-    status: 'active',
-    wager: 100,
-    mode: 'daily',
-    yourProgress: 1850,
-    opponentProgress: 1620,
-    endsAt: new Date(Date.now() + 5 * 60 * 60 * 1000),
-  },
-  {
-    id: '2',
-    opponent: { nickname: 'AquaWarrior', level: 15 },
-    status: 'pending',
-    wager: 50,
-    mode: 'quick',
-    yourProgress: 0,
-    opponentProgress: 0,
-    endsAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
-  },
-  {
-    id: '3',
-    opponent: { nickname: 'WaterMaster', level: 22 },
-    status: 'completed',
-    wager: 200,
-    mode: 'tournament',
-    yourProgress: 2100,
-    opponentProgress: 2350,
-    endsAt: new Date(Date.now() - 2 * 60 * 60 * 1000),
-    result: 'loss',
-  },
-];
 
 // ── Component ──────────────────────────────────────────────
 
 const ArenaTab = ({ profile }: ArenaTabProps) => {
   const [selectedMode, setSelectedMode] = useState<'daily' | 'quick' | 'tournament' | null>(null);
   const [showBattleDetail, setShowBattleDetail] = useState<Battle | null>(null);
+  const [battles, setBattles] = useState<Battle[]>([]);
+  const [stats, setStats] = useState<ArenaStats>({ wins: 0, losses: 0, draws: 0, winStreak: 0, bestStreak: 0, rank: 999, rating: 1200, totalCoins: 0 });
+  const [isLoading, setIsLoading] = useState(true);
 
-  const stats = MOCK_STATS;
-  const battles = MOCK_BATTLES;
+  useEffect(() => {
+    const fetchArenaData = async () => {
+      if (!profile?.id) return;
+      setIsLoading(true);
+      try {
+        const { data, error } = await supabase
+          .from('hydration_battles')
+          .select(`*, challenger:profiles!challenger_id(id, nickname, avatar_url, water_today, water_goal), opponent:profiles!opponent_id(id, nickname, avatar_url, water_today, water_goal)`)
+          .or(`challenger_id.eq.${profile.id},opponent_id.eq.${profile.id}`)
+          .order('created_at', { ascending: false });
+
+        if (error) throw error;
+        if (data) {
+          setBattles(data);
+          let wins = 0, losses = 0, draws = 0; // This logic can be improved
+          data.forEach((b: Battle) => {
+            if (b.status === 'completed') {
+              if (b.winner_id === profile.id) wins++;
+              else if (b.winner_id === null) draws++;
+              else losses++;
+            }
+          });
+          const rating = 1200 + (wins * 25) - (losses * 15);
+          setStats({ wins, losses, draws, winStreak: 0, bestStreak: 0, rank: 99, rating, totalCoins: 0 });
+        }
+      } catch (err) {
+        console.error(err);
+        toast.error('Lỗi tải dữ liệu Đấu trường');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchArenaData();
+  }, [profile?.id]);
+
   const activeBattles = battles.filter(b => b.status === 'active');
-  const winRate = stats.wins + stats.losses > 0
-    ? Math.round((stats.wins / (stats.wins + stats.losses)) * 100)
-    : 0;
+  const winRate = stats.wins + stats.losses > 0 ? Math.round((stats.wins / (stats.wins + stats.losses)) * 100) : 0;
+
+  if (isLoading) {
+    return <div className="h-full flex items-center justify-center"><Loader2 className="animate-spin text-cyan-400" size={32} /></div>;
+  }
 
   return (
     <div className="animate-in slide-in-from-right duration-300 pb-28 pt-6 h-full overflow-y-auto scrollbar-hide">
@@ -161,10 +136,8 @@ const ArenaTab = ({ profile }: ArenaTabProps) => {
               key={m.id}
               onClick={() => {
                 setSelectedMode(m.id);
-                toast(`Bắt đầu tìm đối thủ cho chế độ ${m.label}...`, {
-                  duration: 2000,
-                  action: { label: 'Huỷ', onClick: () => setSelectedMode(null) },
-                });
+                toast.info('Vui lòng sử dụng nút ⚔️ Đấu ở trang chủ để tìm đối thủ nhé!', { duration: 3000 });
+                setTimeout(() => setSelectedMode(null), 1000);
               }}
               className={`flex-1 py-3 rounded-2xl flex flex-col items-center gap-1.5 transition-all duration-300 relative overflow-hidden ${
                 selectedMode === m.id 
@@ -194,11 +167,11 @@ const ArenaTab = ({ profile }: ArenaTabProps) => {
              Đang diễn ra
           </h3>
           <div className="space-y-3">
-            {activeBattles.map(battle => (
+            {activeBattles.map((battle, index) => (
               <BattleCard
-                key={battle.id}
+                key={battle.id || `active-battle-${index}`}
                 battle={battle}
-                userNickname={profile?.nickname || 'Bạn'}
+                profile={profile}
                 onClick={() => setShowBattleDetail(battle)}
               />
             ))}
@@ -218,8 +191,8 @@ const ArenaTab = ({ profile }: ArenaTabProps) => {
         </div>
 
         <div className="space-y-2">
-          {battles.filter(b => b.status === 'completed').slice(0, 3).map(battle => (
-            <BattleHistoryItem key={battle.id} battle={battle} />
+          {battles.filter(b => b.status === 'completed').slice(0, 3).map((battle, index) => (
+            <BattleHistoryItem key={battle.id || `history-battle-${index}`} battle={battle} profile={profile} />
           ))}
         </div>
       </div>
@@ -239,8 +212,9 @@ const ArenaTab = ({ profile }: ArenaTabProps) => {
       <AnimatePresence>
         {showBattleDetail && (
           <BattleDetailModal
+            key="battle-detail-modal"
             battle={showBattleDetail}
-            userNickname={profile?.nickname || 'Bạn'}
+              profile={profile}
             onClose={() => setShowBattleDetail(null)}
           />
         )}
@@ -253,17 +227,27 @@ const ArenaTab = ({ profile }: ArenaTabProps) => {
 
 interface BattleCardProps {
   battle: Battle;
-  userNickname: string;
+  profile: Profile | null;
   onClick: () => void;
 }
 
-const BattleCard = ({ battle, userNickname, onClick }: BattleCardProps) => {
-  const yourLead = battle.yourProgress > battle.opponentProgress;
-  const delta = Math.abs(battle.yourProgress - battle.opponentProgress);
-  const totalProgress = battle.yourProgress + battle.opponentProgress;
-  const yourPct = totalProgress > 0 ? (battle.yourProgress / totalProgress) * 100 : 50;
+const BattleCard = ({ battle, profile, onClick }: BattleCardProps) => {
+  const isChallenger = battle.challenger_id === profile?.id;
+  const me = isChallenger ? battle.challenger : battle.opponent;
+  const opponent = isChallenger ? battle.opponent : battle.challenger;
+  const userNickname = me?.nickname ?? 'Bạn';
+  const oppNickname = opponent?.nickname ?? 'Đối thủ';
 
-  const timeLeft = Math.max(0, battle.endsAt.getTime() - Date.now());
+  const myProgress = battle.yourProgress ?? me?.water_today ?? 0;
+  const oppProgress = battle.opponentProgress ?? opponent?.water_today ?? 0;
+  const yourLead = myProgress >= oppProgress;
+  const delta = Math.abs(myProgress - oppProgress);
+  const totalProgress = myProgress + oppProgress;
+  const yourPct = totalProgress > 0 ? (myProgress / totalProgress) * 100 : 50;
+
+  const endsAt = new Date();
+  endsAt.setHours(23, 59, 59, 999);
+  const timeLeft = Math.max(0, endsAt.getTime() - Date.now());
   const hoursLeft = Math.floor(timeLeft / (1000 * 60 * 60));
   const minsLeft = Math.floor((timeLeft % (1000 * 60 * 60)) / (1000 * 60));
 
@@ -280,7 +264,7 @@ const BattleCard = ({ battle, userNickname, onClick }: BattleCardProps) => {
              {battle.mode === 'daily' ? 'Hằng ngày' : battle.mode === 'quick' ? 'Tức thời' : 'Giải đấu'}
            </div>
            <div className="flex items-center gap-1 text-amber-400 text-[10px] font-black bg-amber-500/10 px-2 py-1 rounded-lg border border-amber-500/20">
-             <Coins size={12}/> {battle.wager} WP
+               <Coins size={12}/> {battle.stake_coins} Vàng
            </div>
          </div>
          <div className="flex items-center gap-1 text-slate-400 text-xs font-bold">
@@ -296,7 +280,7 @@ const BattleCard = ({ battle, userNickname, onClick }: BattleCardProps) => {
              <div className="w-6 h-6 rounded-full bg-cyan-500/20 border border-cyan-500/30 flex items-center justify-center text-cyan-400 text-[10px] font-black">
                {userNickname.charAt(0).toUpperCase()}
              </div>
-             <span className="text-xs font-bold text-slate-300 truncate">{userNickname}</span>
+             <span className="text-xs font-bold text-slate-300 truncate max-w-[80px]">{userNickname}</span>
            </div>
            <span className={`text-2xl font-black ${yourLead ? 'text-cyan-400 drop-shadow-[0_0_10px_rgba(6,182,212,0.5)]' : 'text-white'}`}>{battle.yourProgress}</span>
          </div>
@@ -313,11 +297,11 @@ const BattleCard = ({ battle, userNickname, onClick }: BattleCardProps) => {
          <div className="flex flex-col items-end w-1/3">
            <div className="flex items-center gap-2 mb-1 flex-row-reverse">
              <div className="w-6 h-6 rounded-full bg-rose-500/20 border border-rose-500/30 flex items-center justify-center text-rose-400 text-[10px] font-black">
-               {battle.opponent.nickname.charAt(0).toUpperCase()}
+                 {oppNickname.charAt(0).toUpperCase()}
              </div>
-             <span className="text-xs font-bold text-slate-300 truncate">{battle.opponent.nickname}</span>
+               <span className="text-xs font-bold text-slate-300 truncate max-w-[80px]">{oppNickname}</span>
            </div>
-           <span className={`text-2xl font-black ${!yourLead ? 'text-rose-400 drop-shadow-[0_0_10px_rgba(243,62,110,0.5)]' : 'text-white'}`}>{battle.opponentProgress}</span>
+             <span className={`text-2xl font-black ${!yourLead ? 'text-rose-400 drop-shadow-[0_0_10px_rgba(243,62,110,0.5)]' : 'text-white'}`}>{oppProgress}</span>
          </div>
       </div>
 
@@ -335,11 +319,13 @@ const BattleCard = ({ battle, userNickname, onClick }: BattleCardProps) => {
 
 // ── BattleHistoryItem Component ────────────────────────────
 
-const BattleHistoryItem = ({ battle }: { battle: Battle }) => {
-  if (battle.status !== 'completed' || !battle.result) return null;
+const BattleHistoryItem = ({ battle, profile }: { battle: Battle, profile: Profile | null }) => {
+  if (battle.status !== 'completed') return null;
 
-  const isWin = battle.result === 'win';
-  const isDraw = battle.result === 'draw';
+  const isWin = battle.winner_id === profile?.id;
+  const isDraw = battle.winner_id === null;
+  const isChallenger = battle.challenger_id === profile?.id;
+  const opponent = isChallenger ? battle.opponent : battle.challenger;
 
   return (
     <div className="flex items-center justify-between py-3 px-4 rounded-2xl bg-slate-900/40 border border-white/5 hover:bg-white/5 transition-colors">
@@ -352,10 +338,10 @@ const BattleHistoryItem = ({ battle }: { battle: Battle }) => {
           {isWin ? <Trophy size={18} /> : isDraw ? <Shield size={18} /> : <X size={18} />}
         </div>
         <div>
-          <p className="text-sm font-bold text-white">vs {battle.opponent.nickname}</p>
+            <p className="text-sm font-bold text-white">vs {opponent?.nickname || 'Đối thủ'}</p>
           <div className="flex items-center gap-2 mt-0.5">
             <span className="text-[10px] font-mono text-slate-400 bg-slate-800 px-1.5 py-0.5 rounded">
-              {battle.yourProgress} - {battle.opponentProgress}
+                Hoàn thành
             </span>
             <span className={`text-[10px] font-black uppercase tracking-wider ${
               isWin ? 'text-emerald-500' : isDraw ? 'text-slate-500' : 'text-rose-500'
@@ -370,9 +356,9 @@ const BattleHistoryItem = ({ battle }: { battle: Battle }) => {
          <div className={`flex items-center justify-end gap-1 text-sm font-black ${
           isWin ? 'text-amber-400' : 'text-slate-500'
          }`}>
-           {isWin ? '+' : '-'}{battle.wager} <Coins size={14} className={isWin ? "text-amber-400" : "text-slate-500"}/>
+             {isWin ? '+' : '-'}{battle.stake_coins} <Coins size={14} className={isWin ? "text-amber-400" : "text-slate-500"}/>
          </div>
-         <p className="text-[9px] text-slate-500 uppercase font-bold mt-1">2 giờ trước</p>
+           <p className="text-[9px] text-slate-500 uppercase font-bold mt-1">{new Date(battle.created_at).toLocaleDateString('vi-VN')}</p>
       </div>
     </div>
   );
@@ -382,12 +368,23 @@ const BattleHistoryItem = ({ battle }: { battle: Battle }) => {
 
 interface BattleDetailModalProps {
   battle: Battle;
-  userNickname: string;
+  profile: Profile | null;
   onClose: () => void;
 }
 
-const BattleDetailModal = ({ battle, userNickname, onClose }: BattleDetailModalProps) => {
-  const yourLead = battle.yourProgress > battle.opponentProgress;
+const BattleDetailModal = ({ battle, profile, onClose }: BattleDetailModalProps) => {
+  const isChallenger = battle.challenger_id === profile?.id;
+  const me = isChallenger ? battle.challenger : battle.opponent;
+  const opponent = isChallenger ? battle.opponent : battle.challenger;
+  const userNickname = me?.nickname ?? 'Bạn';
+  const oppNickname = opponent?.nickname ?? 'Đối thủ';
+
+  const myProgress = battle.yourProgress ?? me?.water_today ?? 0;
+  const oppProgress = battle.opponentProgress ?? opponent?.water_today ?? 0;
+  const yourLead = myProgress >= oppProgress;
+  
+  const endsAt = new Date();
+  endsAt.setHours(23, 59, 59, 999);
 
   return (
     <div className="fixed inset-0 z-[150] flex items-center justify-center p-4">
@@ -437,17 +434,17 @@ const BattleDetailModal = ({ battle, userNickname, onClose }: BattleDetailModalP
                 <span className="text-xl font-black">{userNickname.charAt(0).toUpperCase()}</span>
               </div>
               <p className="text-xs font-bold text-slate-300 mb-1 truncate">{userNickname}</p>
-              <p className={`text-2xl font-black ${yourLead ? 'text-cyan-400' : 'text-white'}`}>{battle.yourProgress}</p>
+              <p className={`text-2xl font-black ${yourLead ? 'text-cyan-400' : 'text-white'}`}>{myProgress}</p>
               <p className="text-[9px] text-slate-500 uppercase font-bold tracking-widest mt-1">ml uống</p>
             </div>
 
             {/* Opponent */}
             <div className={`rounded-3xl border p-4 text-center transition-colors ${!yourLead ? 'bg-rose-500/10 border-rose-500/30 shadow-[0_0_15px_rgba(243,62,110,0.15)]' : 'bg-slate-800/50 border-white/5'}`}>
               <div className={`w-12 h-12 rounded-2xl mx-auto mb-3 flex items-center justify-center border ${!yourLead ? 'bg-rose-500/20 border-rose-500/30 text-rose-400' : 'bg-slate-700/50 border-slate-600 text-slate-400'}`}>
-                <span className="text-xl font-black">{battle.opponent.nickname.charAt(0).toUpperCase()}</span>
+                <span className="text-xl font-black">{oppNickname.charAt(0).toUpperCase()}</span>
               </div>
-              <p className="text-xs font-bold text-slate-300 mb-1 truncate">{battle.opponent.nickname}</p>
-              <p className={`text-2xl font-black ${!yourLead ? 'text-rose-400' : 'text-white'}`}>{battle.opponentProgress}</p>
+              <p className="text-xs font-bold text-slate-300 mb-1 truncate">{oppNickname}</p>
+              <p className={`text-2xl font-black ${!yourLead ? 'text-rose-400' : 'text-white'}`}>{oppProgress}</p>
               <p className="text-[9px] text-slate-500 uppercase font-bold tracking-widest mt-1">ml uống</p>
             </div>
           </div>
@@ -460,7 +457,7 @@ const BattleDetailModal = ({ battle, userNickname, onClose }: BattleDetailModalP
               <Coins size={14} className="text-amber-500" />
               <span className="text-[9px] text-amber-500/70 uppercase tracking-widest font-bold">Mức cược</span>
             </div>
-            <p className="text-lg font-black text-amber-400">{battle.wager} WP</p>
+            <p className="text-lg font-black text-amber-400">{battle.stake_coins} WP</p>
           </div>
 
           <div className="rounded-2xl border border-slate-700/50 bg-slate-800/30 p-3 flex flex-col items-center justify-center">
@@ -469,7 +466,7 @@ const BattleDetailModal = ({ battle, userNickname, onClose }: BattleDetailModalP
               <span className="text-[9px] text-slate-500 uppercase tracking-widest font-bold">Thời gian còn</span>
             </div>
             <p className="text-lg font-black text-white">
-              {Math.floor((battle.endsAt.getTime() - Date.now()) / (1000 * 60 * 60))}h
+              {Math.floor((Math.max(0, endsAt.getTime() - Date.now())) / (1000 * 60 * 60))}h
             </p>
           </div>
         </div>

@@ -1,62 +1,73 @@
-// src/lib/feedAlgorithm.ts
-
-export type PostType = 'milestone' | 'daily_goal' | 'water_log' | 'status' | 'challenge';
-
-export interface FeedPost {
-  id: string;
-  user_id: string;
-  user_name: string;
-  user_avatar: string;
-  type: PostType;
-  content: string;
-  value?: number; // Ví dụ: chuỗi 5 ngày, hoặc 2000ml
-  likes: number;
-  comments: number;
-  created_at: string;
-  isLiked?: boolean;
+function timeToMinutes(time: string): number {
+  if (!time || !time.includes(':')) return 0;
+  const [hours, minutes] = time.split(':').map(Number);
+  return (hours * 60) + minutes;
 }
 
-// THUẬT TOÁN CHẤM ĐIỂM BÀI VIẾT (EdgeRank-lite)
-export function rankFeedPosts(
-  posts: FeedPost[], 
-  closeFriendIds: string[] = [] // Danh sách ID bạn thân
-): FeedPost[] {
-  const NOW = Date.now();
+export function rankFeedPosts(posts: any[], followingIds: string[], currentUser?: any) {
+  if (!posts || posts.length === 0) return [];
 
-  const rankedPosts = posts.map(post => {
+  const now = new Date().getTime();
+
+  const scoredPosts = posts.map(post => {
     let score = 0;
 
-    // 1. CONTENT WEIGHT (Trọng số nội dung)
-    // Cột mốc (Streak, Huy hiệu) quan trọng nhất, sau đó đến Đạt mục tiêu, rồi mới tới Uống nước lẻ tẻ
-    switch (post.type) {
-      case 'milestone': score += 100; break;
-      case 'daily_goal': score += 70; break;
-      case 'status': score += 50; break;
-      case 'water_log': score += 20; break;
-      default: score += 10;
+    // 1. Theo dõi (Following) - Tín hiệu cơ bản mạnh nhất
+    const isFollowing = followingIds?.includes(post.user_id);
+    if (isFollowing) score += 500;
+
+    // 2. Độ mới (Recency) - Giảm điểm dần theo thời gian (Time Decay)
+    const postTime = new Date(post.created_at).getTime();
+    const hoursAgo = (now - postTime) / (1000 * 60 * 60);
+    score += Math.max(0, 200 - (hoursAgo * 5)); // Bài viết mới trong 24h sẽ có lợi thế
+
+    // 3. Lịch sử tương tác (Interaction History)
+    const likes = post.likes || 0;
+    const comments = post.comments || 0;
+    score += (likes * 5) + (comments * 10); // Comment thể hiện sự quan tâm sâu hơn Like
+
+    // ==========================================
+    // CÁC TÍN HIỆU CÁ NHÂN HÓA (PERSONALIZATION)
+    // ==========================================
+    if (currentUser && post.author) {
+      // 4. Mức độ vận động (Similar Habits)
+      if (post.activity && currentUser.activity && post.activity === currentUser.activity) {
+        score += 30; // Cùng mức độ vận động (Vd: Cùng là người tập Gym/Yoga)
+      }
+
+      // 5. Cùng chung mục tiêu uống nước (Similar Hydration Goals)
+      const postWater = post.hydration_ml || post.value || 0;
+      const myGoal = currentUser.water_goal || 2000;
+      if (postWater > 0 && myGoal > 0) {
+        // Nếu bài viết báo cáo lượng nước ấn tượng (đạt > 80% mục tiêu của chính mình)
+        if (postWater >= myGoal * 0.8) score += 40;
+      }
+
+      // 6. Tín hiệu Thách đấu (Challenge Interest)
+      if (post.type === 'challenge') {
+        score += 80; // Ưu tiên hiển thị thách đấu để đẩy mạnh Gamification
+      }
+
+      // --- PHASE 7: NEW SIGNALS ---
+      // 7. Cùng nhóm tuổi (Same Age Group)
+      if (post.author.age && currentUser.age && Math.abs(post.author.age - currentUser.age) <= 5) {
+        score += 25;
+      }
+
+      // 8. Cùng loại đồ uống (Same Drinks) - Giả định user có favorite_drink
+      if (post.drink_type && currentUser.favorite_drink && post.drink_type === currentUser.favorite_drink) {
+        score += 20;
+      }
+
+      // 9. Cùng lịch trình (Similar Schedule)
+      if (post.author.wake_up && currentUser.wakeUp && Math.abs(timeToMinutes(post.author.wake_up) - timeToMinutes(currentUser.wakeUp)) <= 60) {
+        score += 15;
+      }
     }
 
-    // 2. AFFINITY (Độ thân thiết)
-    // Nếu là bạn thân/người hay tương tác -> Cộng điểm mạnh
-    if (closeFriendIds.includes(post.user_id)) {
-      score += 50;
-    }
-
-    // 3. ENGAGEMENT (Độ viral)
-    // Bài nhiều like/comment tự động ngoi lên
-    score += (post.likes * 2) + (post.comments * 3);
-
-    // 4. TIME DECAY (Độ "thiu" của bài viết)
-    // Mỗi giờ trôi qua, bài viết sẽ bị trừ điểm để nhường chỗ cho bài mới
-    const hoursOld = (NOW - new Date(post.created_at).getTime()) / (1000 * 60 * 60);
-    // Công thức suy giảm: Trừ điểm theo cấp số mũ nhẹ
-    const decayPenalty = Math.pow(hoursOld, 1.2) * 5; 
-    
-    score -= decayPenalty;
-
-    return { ...post, _score: score }; // Gắn điểm ngầm vào để sort
+    return { ...post, _score: score };
   });
 
-  // Sort từ điểm cao xuống thấp
-  return rankedPosts.sort((a: any, b: any) => b._score - a._score);
+  // Sắp xếp danh sách bài viết theo điểm số giảm dần
+  return scoredPosts.sort((a, b) => b._score - a._score);
 }

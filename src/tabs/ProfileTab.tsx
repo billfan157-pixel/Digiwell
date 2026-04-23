@@ -5,15 +5,24 @@ import BadgesGrid from '../components/BadgesGrid';
 import CountUp from '../components/CountUp';
 import { toast } from 'sonner';
 import { expRequiredForLevel, totalExpForLevel } from '../config/questConfig';
+import AvatarFrame from '../components/AvatarFrame';
+import { supabase } from '../lib/supabase';
+import type { Profile, SocialFeedPost } from '../models';
+
+interface SocialProfileStats {
+  followers: number;
+  following: number;
+  posts: number;
+}
 
 interface ProfileTabProps {
-  profile: any;
+  profile: Profile | null;
   isPremium: boolean;
   streak: number;
   streakFreezes?: number;
   needsFreeze?: boolean;
   useStreakFreeze?: () => Promise<boolean>;
-  socialProfileStats: any;
+  socialProfileStats: SocialProfileStats;
   waterIntake: number;
   waterGoal: number;
   weeklyHistory: { d: string; ml: number; isToday: boolean }[];
@@ -25,10 +34,10 @@ interface ProfileTabProps {
   setShowAddFriend: (show: boolean) => void;
   setShowProfileSettings: (show: boolean) => void;
   setShowShopModal: (show: boolean) => void;
-  setActiveTab: (tab: any) => void;
+  setActiveTab: (tab: string) => void;
   handleLogout: () => void;
-  posts?: any[];
-  handleToggleLikePost?: (post: any) => void;
+  posts?: SocialFeedPost[];
+  handleToggleLikePost?: (post: SocialFeedPost) => void;
 }
 
 const card = "bg-slate-200/50 dark:bg-slate-900/60 backdrop-blur-xl border border-slate-300 dark:border-white/5 rounded-3xl shadow-xl";
@@ -45,8 +54,8 @@ export default function ProfileTab({
   const totalWeek = weeklyHistory.reduce((sum, item) => sum + item.ml, 0);
   const avgWeek = Math.round(totalWeek / (weeklyHistory.length || 1));
 
-  const myPosts = useMemo(() => {
-    return posts?.filter((p: any) => p.author_id === profile?.id).sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()) || [];
+  const myPosts: SocialFeedPost[] = useMemo(() => {
+    return posts?.filter((p) => p.author_id === profile?.id).sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()) || [];
   }, [posts, profile?.id]);
 
   // Function để recalculate level (for admin/debugging)
@@ -107,8 +116,8 @@ export default function ProfileTab({
         <div className="absolute -top-12 -right-8 w-32 h-32 rounded-full blur-3xl bg-cyan-500/15 pointer-events-none" />
         <div className="absolute -bottom-14 -left-10 w-36 h-36 rounded-full blur-3xl bg-amber-500/10 pointer-events-none" />
         <div className="relative flex items-start gap-4">
-          <div className="w-20 h-20 rounded-[1.75rem] flex items-center justify-center flex-shrink-0 shadow-lg" style={{ background: isPremium ? 'linear-gradient(135deg, #fbbf24, #d97706)' : 'linear-gradient(135deg, #06b6d4, #0ea5e9)' }}>
-            <span className="text-4xl font-black text-white dark:text-slate-900">{(profile?.nickname || 'U').charAt(0).toUpperCase()}</span>
+          <div className="flex-shrink-0 shadow-lg rounded-full">
+            <AvatarFrame size="md" level={profile?.level || 1} avatarUrl={profile?.avatar_url ?? null} nickname={profile?.nickname} showBadge={true} />
           </div>
           <div className="flex-1 min-w-0">
             <div className="min-w-0">
@@ -288,7 +297,7 @@ export default function ProfileTab({
       </>}
 
     {activeView === 'posts' && <div className="mt-4 space-y-4">
-        {myPosts.length > 0 ? myPosts.map((post: any) => <PostCard key={post.id} post={post} currentUserId={profile?.id} handleToggleLikePost={handleToggleLikePost} onOpenComments={() => {}} />) : <div className="text-center py-10 bg-slate-200/50 dark:bg-slate-900/50 rounded-3xl border border-slate-300 dark:border-white/5">
+        {myPosts.length > 0 ? myPosts.map((post, index: number) => <PostCard key={post.id || `mypost-${index}`} post={post} currentUserId={profile?.id} handleToggleLikePost={handleToggleLikePost || (() => {})} onOpenComments={() => {}} />) : <div className="text-center py-10 bg-slate-200/50 dark:bg-slate-900/50 rounded-3xl border border-slate-300 dark:border-white/5">
             <Grid size={40} className="text-slate-400 dark:text-slate-700 mx-auto mb-3" />
             <p className="text-slate-500 text-sm font-medium">Bạn chưa có bài đăng nào</p>
           </div>}

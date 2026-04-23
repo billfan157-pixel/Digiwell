@@ -24,6 +24,7 @@ export default function LockedScreen({ profile, onUnlock, onLogout }: any) {
     <AnimatePresence>
       {!isUnlocked && (
         <motion.div 
+          key="locked-screen"
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
           exit={{ opacity: 0, scale: 1.05 }}

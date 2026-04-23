@@ -58,7 +58,7 @@ export function DiagnosticsPanel({ isConnected, batteryLevel, batteryHealth, bat
       </button>
       <AnimatePresence initial={false}>
         {isOpen && (
-          <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.22, ease: 'easeOut' }} className="overflow-hidden">
+          <motion.div key="diagnostics-panel" initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.22, ease: 'easeOut' }} className="overflow-hidden">
             <div className="px-4 pb-4">
               <div className="flex gap-3 overflow-x-auto pb-2 -mx-1 px-1 mb-4 snap-x snap-mandatory scrollbar-hide">
                 <MetricCard icon={<BatteryFull size={18} />} label="Health" value={`${batteryHealth}%`} hint={`Cycles ${batteryCycleCount}`} accent="cyan" />
@@ -101,7 +101,7 @@ export function LedPatternStudio({ ledColor, setLedColor, ledPattern, setLedPatt
       </button>
       <AnimatePresence initial={false}>
         {isOpen && (
-          <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.22, ease: 'easeOut' }} className="overflow-hidden">
+          <motion.div key="led-studio-panel" initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.22, ease: 'easeOut' }} className="overflow-hidden">
             <div className="px-4 pb-4">
               <div className="flex gap-3 overflow-x-auto pb-2 -mx-1 px-1 mb-4 snap-x snap-mandatory scrollbar-hide">
                 {patterns.map(p => ( <button key={p.id} disabled={p.id === 'heart-sync' && !isWatchConnected} onClick={() => setLedPattern(p.id)} className={`min-w-[12rem] snap-start rounded-[1.5rem] p-4 border text-left transition-all ${ledPattern === p.id ? 'border-fuchsia-400/40 bg-fuchsia-500/10' : 'border-white/10 bg-slate-950/30'}`}><div className="flex justify-between mb-3"><Waves size={18} className="text-fuchsia-300" /></div><p className="text-sm font-black text-white">{p.name}</p></button> ))}
@@ -162,7 +162,7 @@ export function AutomationCenter({
       </button>
       <AnimatePresence initial={false}>
         {isOpen && (
-          <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.22, ease: 'easeOut' }} className="overflow-hidden">
+          <motion.div key="automation-center-panel" initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.22, ease: 'easeOut' }} className="overflow-hidden">
             <div className="px-4 pb-4">
               <div className="rounded-[1.5rem] border border-white/10 bg-slate-950/45 p-4 mb-4">
                 <p className="text-sm font-black text-white mb-4">Rule Composer</p>
@@ -260,7 +260,7 @@ export function DeveloperModePanel({ isUnlocked, syncLogs, onCalibration, onExpo
       </button>
       <AnimatePresence initial={false}>
         {isOpen && (
-          <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
+          <motion.div key="dev-mode-panel" initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
             <div className="px-4 pb-4">
               {!isUnlocked ? (
                 <div className="rounded-[1.75rem] border border-dashed border-white/10 bg-slate-950/35 p-5 text-center"><Lock size={28} className="text-slate-500 mx-auto mb-3" /><p className="text-white font-black">Firmware {firmwareVersion}</p></div>
@@ -293,7 +293,7 @@ export function DeviceConsole({ syncLogs, isOpen, onToggle }: DeviceConsoleProps
       </button>
       <AnimatePresence initial={false}>
         {isOpen && (
-          <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
+          <motion.div key="device-console-panel" initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
             <div className="px-4 pb-4">
               <div className="space-y-3">
                 {[...syncLogs].reverse().slice(0, 5).map((log: any) => (
