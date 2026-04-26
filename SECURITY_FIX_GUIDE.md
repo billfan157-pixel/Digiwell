@@ -1,97 +1,101 @@
 # 🔒 HƯỚNG DẪN SỬA LỖI BẢO MẬT - QUAN TRỌNG!
 
-## ⚠️ VẤN ĐỀ: File .env đã bị commit lên Git
+## ⚠️ VẤN ĐỀ: File `.env` hoặc AI secret đã bị lộ
 
-File `.env` chứa API keys nhạy cảm đã bị đưa lên Git repository. Điều này rất nguy hiểm!
+Chỉ xóa file khỏi nhánh hiện tại là chưa đủ. Nếu secret đã xuất hiện trong Git history, nó đã bị xâm phạm và phải được rotate ngay.
 
 ## 🚨 HÀNH ĐỘNG NGAY LẬP TỨC
 
-### Bước 1: Xóa .env khỏi Git History
+### Bước 1: Rotate Groq key ngay
+
+1. Vào Groq Console và thu hồi hoặc xóa key cũ.
+2. Tạo key mới.
+3. Chỉ lưu key mới ở server-side, không đưa vào `VITE_*` hay client bundle.
+
+### Bước 2: Giữ AI secret ở server-side
 
 ```bash
-# Di chuyển vào thư mục dự án
-cd C:\Users\phanb\digiwell-app
-
-# Xóa .env khỏi Git (nhưng giữ lại file local)
-git rm --cached .env
-
-# Commit thay đổi
-git commit -m "Remove sensitive .env file from repository"
-
-# Push lên remote
-git push origin main
+supabase secrets set GROQ_API_KEY=<GROQ_KEY_MOI>
 ```
 
-### Bước 2: Tạo API Keys Mới (BẮT BUỘC!)
+Frontend không cần `VITE_GROQ_API_KEY` nếu AI đi qua `supabase/functions/ai-gateway`.
 
-Vì API keys cũ đã bị lộ, bạn PHẢI tạo lại:
-
-#### 2.1. Supabase Keys Mới
-1. Truy cập: https://app.supabase.com/project/plbwqjdrivyffrhpbmvm/settings/api
-2. Trong phần "Project API keys", click **"Reset"** cho `anon` key
-3. Copy key mới và cập nhật vào file `.env` local của bạn
-
-#### 2.2. Google Gemini API Key Mới
-1. Truy cập: https://aistudio.google.com/app/apikey
-2. Xóa API key cũ: `<REDACTED_GEMINI_KEY>`
-3. Tạo API key mới
-4. Copy key mới và cập nhật vào file `.env` local
-
-### Bước 3: Cập nhật file .env Local
+### Bước 3: Bỏ `.env` khỏi index hiện tại nếu nó đang bị track
 
 ```bash
-# File .env (CHỈ LƯU LOCAL, KHÔNG COMMIT)
+git rm --cached .env
+```
+
+### Bước 4: Xóa secret khỏi Git history
+
+`git rm --cached` không xóa lịch sử cũ. Nếu secret từng được commit, cần rewrite history:
+
+```bash
+# Xóa toàn bộ file .env khỏi lịch sử
+git filter-repo --path .env --invert-paths
+
+# Nếu secret xuất hiện trong file khác, dùng replace-text
+# Tạo file replacements.txt với dòng:
+# <OLD_GROQ_KEY>==>REMOVED_GROQ_SECRET
+git filter-repo --replace-text replacements.txt
+```
+
+Sau đó force-push lịch sử mới lên remote:
+
+```bash
+git push --force-with-lease --all
+git push --force-with-lease --tags
+```
+
+### Bước 5: Cập nhật file `.env` local
+
+```bash
+# File .env (chỉ lưu local, không commit)
 VITE_SUPABASE_URL=https://plbwqjdrivyffrhpbmvm.supabase.co
-VITE_SUPABASE_ANON_KEY=<KEY_MỚI_TỪ_SUPABASE>
-VITE_GEMINI_API_KEY=<KEY_MỚI_TỪ_GOOGLE>
+VITE_SUPABASE_ANON_KEY=<SUPABASE_ANON_KEY>
 ```
 
-### Bước 4: Kiểm tra .gitignore
+Không thêm `VITE_GROQ_API_KEY` vào đây.
 
-File `.gitignore` đã có `.env` rồi, nhưng hãy đảm bảo:
+### Bước 6: Kiểm tra `.gitignore`
 
 ```bash
-# Kiểm tra xem .env có bị track không
-git status
-
-# Nếu vẫn thấy .env trong danh sách, chạy lại:
-git rm --cached .env
-git commit -m "Ensure .env is not tracked"
+git ls-files .env
 ```
+
+Nếu lệnh trên không trả về gì thì `.env` không còn bị track.
 
 ## ✅ CHECKLIST XÁC NHẬN
 
-- [ ] Đã chạy `git rm --cached .env`
-- [ ] Đã commit và push thay đổi
-- [ ] Đã reset Supabase anon key
-- [ ] Đã xóa và tạo lại Gemini API key
-- [ ] Đã cập nhật file `.env` local với keys mới
-- [ ] Đã test app với keys mới (chạy `npm run dev`)
-- [ ] Đã xác nhận `.env` không còn trong `git status`
+- [ ] Đã rotate Groq API key
+- [ ] Đã cấu hình `GROQ_API_KEY` trong Supabase secrets
+- [ ] Đã chạy `git rm --cached .env` nếu file từng bị track
+- [ ] Đã rewrite Git history nếu secret từng được commit
+- [ ] Đã force-push lịch sử mới lên remote
+- [ ] Đã cập nhật `.env` local chỉ với public client config
+- [ ] Đã test app với key mới
+- [ ] Đã xác nhận `.env` không còn bị track bởi git
 
 ## 🔐 BẢO MẬT CHO TƯƠNG LAI
 
-### Quy tắc vàng:
-1. **KHÔNG BAO GIỜ** commit file `.env` vào Git
-2. **LUÔN LUÔN** dùng `.env.example` cho template
-3. **THƯỜNG XUYÊN** rotate (thay đổi) API keys
-4. **SỬ DỤNG** environment variables trên production server
+1. **KHÔNG BAO GIỜ** commit file `.env` vào Git.
+2. **LUÔN LUÔN** dùng `.env.example` làm template không chứa secret thật.
+3. **THƯỜNG XUYÊN** rotate API key nếu có dấu hiệu lộ lọt.
+4. **GIỮ** AI secrets ở server-side functions, không đưa vào `VITE_*`.
 
-### Cho Production Build:
-Khi build app để release, sử dụng environment variables thay vì hardcode:
+### Cho production build
 
 ```bash
-# Build với env variables
+# Build với public client env
 VITE_SUPABASE_URL=xxx VITE_SUPABASE_ANON_KEY=xxx npm run build
 ```
 
 ## 📞 Cần Trợ Giúp?
 
-Nếu gặp vấn đề:
-1. Kiểm tra Supabase Dashboard xem có request lạ không
-2. Kiểm tra Google Cloud Console xem usage của Gemini API
-3. Nếu phát hiện lạm dụng, reset keys ngay lập tức
+1. Kiểm tra Groq usage/logs xem key cũ có bị lạm dụng không.
+2. Kiểm tra Supabase Edge Function logs.
+3. Nếu remote hoặc fork đã mirror secret, đảm bảo mọi remote liên quan cũng được dọn lịch sử.
 
 ---
 
-**LƯU Ý**: Hướng dẫn này đã được tạo tự động. Hãy thực hiện NGAY để bảo vệ dữ liệu của bạn!
+**LƯU Ý**: Rewrite history sẽ thay đổi SHA commit. Tất cả clone và fork cần đồng bộ lại sau khi force-push.

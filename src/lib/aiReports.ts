@@ -5,27 +5,12 @@
 // Giữ nguyên cấu trúc của mày và thêm logic Tài chính + Vận động
 // ============================================================
 
-import Groq from 'groq-sdk';
 import { supabase } from './supabase';
-
-interface ImportMetaEnv {
-  readonly VITE_GROQ_API_KEY?: string;
-}
-
-interface ImportMeta {
-  readonly env: ImportMetaEnv;
-}
-
-const groqApiKey = import.meta.env.VITE_GROQ_API_KEY ?? '';
-const TEXT_MODEL = 'llama-3.3-70b-versatile';
+import { invokeAiGateway } from './aiGateway';
 
 // ── Các hằng số mới cho Premium ────────────────────────────
 const SAVINGS_PER_DAY = 30000; // Tiết kiệm 30k/ngày nếu đạt mục tiêu
 const FUND_UNIT_PRICE = 25000; // Giá giả định 1 đơn vị quỹ VESAF/DCDS
-
-function createGroqClient() {
-  return new Groq({ apiKey: groqApiKey, dangerouslyAllowBrowser: true });
-}
 
 // ── Types (Thêm 2 field mới) ───────────────────────────────
 
@@ -179,43 +164,19 @@ async function generateAiAnalysis(
   const savings = stats.goalsAchieved * SAVINGS_PER_DAY;
   const units = (savings / FUND_UNIT_PRICE).toFixed(2);
 
-  const entryText = entries
-    .map(e => `${e.date}: ${e.waterIntake}ml/${e.waterGoal}ml (${e.achieved ? '✓' : '✗'})`)
-    .join('\n');
-
-  // Cải tiến prompt để AI phân tích cả tài chính và nhịp tim
-  const prompt = `Bạn là Chuyên gia Sức khỏe và Cố vấn Tài chính AI của DigiWell.
-Hãy phân tích báo cáo cho người dùng ${profile?.nickname ?? 'bạn'}.
-
-Thông tin:
-- Kỳ báo cáo: ${periodLabel}
-- Thành tích: ${stats.goalsAchieved}/${stats.totalDays} ngày đạt mục tiêu (${stats.achievementRate}%).
-- Nhịp tim trung bình: ${profile?.avgHeartRate ?? 'N/A'} BPM (Dành cho dân đạp xe/vận động).
-- Tiết kiệm: ${savings.toLocaleString()} VND (Tương đương ${units} đơn vị quỹ VESAF/DCDS).
-
-Yêu cầu:
-1. "analysis": Nhận xét sâu sắc, thân thiện về sự kỷ luật, mối liên hệ giữa nước, nhịp tim và tích lũy tài chính.
-2. "recommendations": 3 gợi ý thực tế về Hydration, Vận động và Kỷ luật đầu tư.
-
-Trả về JSON thuần:
-{
-  "analysis": "...",
-  "recommendations": ["...", "...", "..."]
-}`;
-
-  const groq = createGroqClient();
-  const response = await groq.chat.completions.create({
-    model: TEXT_MODEL,
-    max_tokens: 500,
-    response_format: { type: 'json_object' },
-    messages: [{ role: 'user', content: prompt }],
-  });
-
   try {
-    const parsed = JSON.parse(response.choices[0]?.message?.content ?? '{}');
+    const response = await invokeAiGateway<{ analysis?: string; recommendations?: string[] }>('report-analysis', {
+      stats,
+      entries,
+      periodLabel,
+      profile: profile || {},
+      savings,
+      units,
+    });
+
     return {
-      analysis: parsed.analysis || '',
-      recommendations: parsed.recommendations || [],
+      analysis: response.analysis || '',
+      recommendations: response.recommendations || [],
       savings: savings,
       units: `${units} đơn vị quỹ`
     };

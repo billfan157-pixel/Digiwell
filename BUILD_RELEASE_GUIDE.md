@@ -16,10 +16,15 @@ npm run dev
 
 ### 3. Đảm bảo .env đã được cấu hình đúng
 ```bash
-# Kiểm tra file .env có đầy đủ keys
+# Kiem tra file .env chi chua public client config
 VITE_SUPABASE_URL=...
 VITE_SUPABASE_ANON_KEY=...
-VITE_GEMINI_API_KEY=...
+```
+
+AI secrets khong duoc dat trong `.env` cua Vite. Cau hinh `GROQ_API_KEY` tren server:
+
+```bash
+supabase secrets set GROQ_API_KEY=your-groq-api-key
 ```
 
 ---

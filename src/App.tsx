@@ -1213,7 +1213,7 @@ function AppContent() {
   };
 
   const handleScan = () => {
-    if (!isAiConfigured()) return toast.error("Vui lòng cấu hình VITE_GROQ_API_KEY!");
+    if (!isAiConfigured()) return toast.error("Cloud AI chưa được cấu hình.");
     fileInputRef.current?.click();
   };
 

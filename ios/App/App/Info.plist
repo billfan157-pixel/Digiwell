@@ -63,6 +63,10 @@
 	</array>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>Ứng dụng cần vị trí của bạn để cập nhật thời tiết chính xác tại khu vực của bạn.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>DigiWell cần quyền truy cập camera để quét đồ uống và chụp ảnh đại diện khi bạn chủ động sử dụng các tính năng này.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>DigiWell cần quyền truy cập thư viện ảnh để tải ảnh đồ uống hoặc ảnh đại diện khi bạn chủ động chọn ảnh.</string>
 	<key>NSFaceIDUsageDescription</key>
 	<string>DigiWell sử dụng Face ID/Touch ID để bảo mật tài khoản và bảo vệ dữ liệu sức khỏe của bạn.</string>
 </dict>
